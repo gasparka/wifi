@@ -22,7 +22,7 @@ rate_lut_20m = {6: '1101',
                 54: '0011'}
 
 
-def signal_field(data_rate, length_octets, channel='20M'):
+def signal_field(data_rate, length_bytes, channel='20M'):
     """
     The SIGNAL field is composed of 24 bits:
 
@@ -54,14 +54,17 @@ def signal_field(data_rate, length_octets, channel='20M'):
 
     """ The PHY LENGTH field shall be an unsigned 12-bit integer that indicates the number of octets in the PSDU
     that the MAC is currently requesting the PHY to transmit."""
-    length_octets_bin = bin(length_octets)[2:].zfill(12)[::-1]  # [::-1] stuff is to reverse the string
+    length_octets_bin = bin(length_bytes)[2:].zfill(12)[::-1]  # [::-1] stuff is to reverse the string
     signal += length_octets_bin
 
     """ Bit 17 shall be a positive parity (evenparity) bit for bits 0–16 """
     parity = signal.count('1') & 1
     signal += str(parity)
 
-    """ The bits 18–23 constitute the SIGNAL TAIL field, and all 6 bits shall be set to 0. """
+    """ 
+    In order to facilitate a reliable and timely
+    detection of the RATE and LENGTH fields, 6 zero tail bits are inserted into the PHY header. 
+    The bits 18–23 constitute the SIGNAL TAIL field, and all 6 bits shall be set to 0. """
     signal += '000000'
     return signal
 

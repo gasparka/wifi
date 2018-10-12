@@ -1,5 +1,7 @@
 import numpy as np
 
+from ieee80211phy.transmitter.subcarrier_modulation_mapping import mapper
+
 
 def insert_pilots_and_pad(symbols):
     """ Inserts 4 pilots at position -21, -7, 7, 21 and pads start and end with zeroes
@@ -38,12 +40,11 @@ def ifft_guard_window(symbols):
         12 empty tones. This is solved by setting -32..-27, 0 and 27..31 subcarriers to 0+0j.
 
     """
-
+    symbols = insert_pilots_and_pad(symbols)
     symbols = np.fft.fftshift(symbols)
     ifft = np.fft.ifft(symbols)
-
     result = np.concatenate([ifft[48:], ifft])
-    return result.astype(np.complex128)
+    return result
 
 
 def test_inset_pilots_and_pad():
@@ -73,20 +74,15 @@ def test_inset_pilots_and_pad():
     np.testing.assert_equal(expected, np.round(output, 3))
 
 
-def test_():
-    """ Table I-25—Time domain representation of the DATA field: symbol 1of 6 """
-    input = np.array([0j, 0j, 0j, 0j, 0j, 0j, (-0.316 + 0.316j), (-0.316 + 0.316j), (0.316 + 0.316j), (-0.949 - 0.949j),
-             (0.316 + 0.949j), (1 + 0j), (0.316 + 0.316j), (0.316 - 0.949j), (-0.316 - 0.949j), (-0.316 + 0.316j),
-             (-0.949 + 0.316j), (-0.949 - 0.949j), (-0.949 - 0.949j), (0.949 + 0.316j), (0.316 + 0.316j),
-             (-0.949 - 0.316j), (-0.949 - 0.316j), (-0.949 - 0.316j), (-0.949 - 0.949j), (1 + 0j), (0.949 - 0.316j),
-             (0.949 + 0.949j), (-0.949 - 0.316j), (0.316 - 0.316j), (-0.949 - 0.316j), (-0.949 + 0.949j), 0j,
-             (-0.316 + 0.949j), (0.316 + 0.949j), (-0.949 + 0.316j), (0.949 - 0.949j), (0.316 + 0.316j),
-             (-0.316 - 0.316j), (1 + 0j), (-0.316 + 0.949j), (0.949 - 0.316j), (-0.949 - 0.316j), (0.949 + 0.316j),
-             (-0.316 + 0.949j), (0.949 + 0.316j), (0.949 - 0.316j), (0.949 - 0.949j), (-0.316 - 0.949j),
-             (-0.949 + 0.316j), (-0.949 - 0.949j), (-0.949 - 0.949j), (-0.949 - 0.949j), (-1 + 0j), (0.316 - 0.316j),
-             (0.949 + 0.316j), (-0.949 + 0.316j), (-0.316 + 0.949j), (0.316 - 0.316j), 0j, 0j, 0j, 0j, 0j], dtype=np.complex128)
+def test_ofdm_i18():
 
-    expected = np.array([(-0.139 + 0.05j), (0.004 + 0.014j), (0.011 - 0.1j), (-0.097 - 0.02j), (0.062 + 0.081j),
+    # IEEE Std 802.11-2016 - Table I-19—Interleaved bits of first DATA symbol
+    input = '0111011111110000111011111100010001110011000000001011111100010001000100001001101000011101000100100110111' \
+            '00011100011110101011010010001101101101011100110000100001100000000000011011011001101101101 '
+    symbols = mapper(input, bits_per_symbol=4)
+
+    # Table I-25—Time domain representation of the DATA field: symbol 1of 6
+    expected = [(-0.139 + 0.05j), (0.004 + 0.014j), (0.011 - 0.1j), (-0.097 - 0.02j), (0.062 + 0.081j),
                 (0.124 + 0.139j), (0.104 - 0.015j), (0.173 - 0.14j), (-0.04 + 0.006j), (-0.133 + 0.009j),
                 (-0.002 - 0.043j), (-0.047 + 0.092j), (-0.109 + 0.082j), (-0.024 + 0.01j), (0.096 + 0.019j),
                 (0.019 - 0.023j), (-0.087 - 0.049j), (0.002 + 0.058j), (-0.021 + 0.228j), (-0.103 + 0.023j),
@@ -101,11 +97,8 @@ def test_():
                 (0.037 - 0.06j), (-0.003 - 0.178j), (-0.007 - 0.128j), (-0.059 + 0.1j), (0.004 + 0.014j),
                 (0.011 - 0.1j), (-0.097 - 0.02j), (0.062 + 0.081j), (0.124 + 0.139j), (0.104 - 0.015j),
                 (0.173 - 0.14j), (-0.04 + 0.006j), (-0.133 + 0.009j), (-0.002 - 0.043j), (-0.047 + 0.092j),
-                (-0.109 + 0.082j), (-0.024 + 0.01j), (0.096 + 0.019j), (0.019 - 0.023j)], dtype=np.complex128)
+                (-0.109 + 0.082j), (-0.024 + 0.01j), (0.096 + 0.019j), (0.019 - 0.023j)]
 
-    output = np.round(ifft_guard_window(input), 6)
+    output = np.round(ifft_guard_window(symbols), 3)
+    np.testing.assert_equal(expected[1:-1], output[1:-1]) # skipping first and last as they are involved in time windowing - which i will perform later
 
-    for a, b in zip(expected[1:-1], output[1:-1]):
-        print(a, b)
-        np.testing.assert_equal(a, b)
-        # np.testing.assert_equal(expected[1:-1], output[1:-1])
