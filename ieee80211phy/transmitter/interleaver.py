@@ -10,24 +10,24 @@ number of bits in a single OFDM symbol. The interleaver is defined by a two-step
 import numpy as np
 
 
-def first_permutation_table(coded_bits_per_symbol):
+def first_permutation_table(coded_bits_symbol):
     """ The first permutation causes adjacent coded bits to be mapped onto nonadjacent subcarriers. """
-    lut = [int((coded_bits_per_symbol / 16) * (k % 16) + np.floor(k / 16))
-           for k in range(coded_bits_per_symbol)]
+    lut = [int((coded_bits_symbol / 16) * (k % 16) + np.floor(k / 16))
+           for k in range(coded_bits_symbol)]
     return lut
 
 
-def second_permutation_table(coded_bits_per_symbol, coded_bits_ber_subcarrier):
+def second_permutation_table(coded_bits_symbol, coded_bits_subcarrier):
     """ The second permutation causes adjacent coded bits to be mapped alternately onto less and more significant bits of the
     constellation and, thereby, long runs of low reliability (LSB) bits are avoided. """
 
-    s = max(coded_bits_ber_subcarrier / 2, 1)
-    lut = [int(s * np.floor(i / s) + (i + coded_bits_per_symbol - np.floor((16 * i) / coded_bits_per_symbol)) % s)
-           for i in range(coded_bits_per_symbol)]
+    s = max(coded_bits_subcarrier / 2, 1)
+    lut = [int(s * np.floor(i / s) + (i + coded_bits_symbol - np.floor((16 * i) / coded_bits_symbol)) % s)
+           for i in range(coded_bits_symbol)]
     return lut
 
 
-def interleaver(data, coded_bits_per_symbol, coded_bits_ber_subcarrier):
+def interleaver(data, coded_bits_symbol, coded_bits_subcarrier):
     """
     Divide the encoded bit string into groups of NCBPS bits. Within each group, perform an
     “interleaving” (reordering) of the bits according to a rule corresponding to the TXVECTOR
@@ -39,10 +39,10 @@ def interleaver(data, coded_bits_per_symbol, coded_bits_ber_subcarrier):
             result[table[i]] = data[i]
         return ''.join(result)
 
-    first_table = first_permutation_table(coded_bits_per_symbol)
+    first_table = first_permutation_table(coded_bits_symbol)
     data = apply_permutation(data, first_table)
 
-    second_table = second_permutation_table(coded_bits_per_symbol, coded_bits_ber_subcarrier)
+    second_table = second_permutation_table(coded_bits_symbol, coded_bits_subcarrier)
     data = apply_permutation(data, second_table)
 
     return data
@@ -100,6 +100,7 @@ def test_i162():
     expect = '011101111111000011101111110001000111001100000000101111110001000100010000100110100001110' \
              '1000100100110111000111000111101010110100100011011011010111001100001000011000000000000110' \
              '11011001101101101'
+
     result = interleaver(input, 192, 4)
     assert result == expect
 

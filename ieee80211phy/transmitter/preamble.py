@@ -65,11 +65,11 @@ def long_training_sequence():
             v += long_train[m + 32] * np.exp(1j * 2 * np.pi * i * m / 64)
         long_time.append(v / 64)
 
-    full_long_time = (long_time[32:] + long_time + long_time + long_time)[:161]
+    full_long_time = (long_time[32:] + long_time + long_time)
 
     # time windowing method as discussed in "17.3.2.6 Discrete time implementation considerations"
     full_long_time[0] *= 0.5
-    full_long_time[160] *= 0.5
+    # full_long_time[160] *= 0.5
     return np.array(full_long_time).astype(
         np.complex64)  # np.complex128 fails tests, because rounding gives different results
 

@@ -1,9 +1,14 @@
+from textwrap import wrap
+
 import numpy as np
 
 from ieee80211phy.transmitter.convolutional_encoder import convolutional_encoder
+from ieee80211phy.transmitter.interleaver import interleaver
+from ieee80211phy.transmitter.ofdm_modulation import map_to_carriers, insert_pilots, ifft_guard
 from ieee80211phy.transmitter.preamble import preamble
 from ieee80211phy.transmitter.scrambler import scrambler
 from ieee80211phy.transmitter.signal_field import signal_field
+from ieee80211phy.transmitter.subcarrier_modulation_mapping import mapper
 
 
 def get_params_from_rate(data_rate):
@@ -77,7 +82,13 @@ def build_package(data, data_rate):
     described subsequently for data transmission with BPSK-OFDM modulated at coding rate 1/2. The
     contents of the SIGNAL field are not scrambled. Refer to 17.3.4 for details.
     """
-    header = signal_field(data_rate, bytes_count(data))
+    header_bits = signal_field(data_rate, length_bytes=len(wrap(data, 8)))
+    header_conv = convolutional_encoder(header_bits, '1/2')
+    header_interleav = interleaver(header_conv, coded_bits_symbol=48, coded_bits_subcarrier=1)
+    header_mapped = mapper(header_interleav, bits_per_symbol=1)
+    header_symbols = map_to_carriers(header_mapped)
+    header_symbols = insert_pilots(header_symbols, 0)
+    header_time_domain = ifft_guard(header_symbols)
 
     """
     c) Calculate from RATE field of the TXVECTOR the number of data bits per OFDM symbol (N DBPS ),
@@ -117,7 +128,6 @@ def build_package(data, data_rate):
     scrambler with a pseudorandom nonzero seed and generate a scrambling sequence. 
     XOR the scrambling sequence with the extended string of data bits. Refer to 17.3.5.5 for details.
     """
-    # BUG HERE, data must be flipped!
     data = scrambler(data)
 
     """ 
@@ -127,7 +137,6 @@ def build_package(data, data_rate):
     """
     data = data[:-len(pad)-6] + '000000' + data[-len(pad):]
 
-
     """
     g) Encode the extended, scrambled data string with a convolutional encoder (R = 1/2). Omit (puncture)
     some of the encoder output string (chosen according to “puncturing pattern”) to reach the “coding
@@ -135,6 +144,64 @@ def build_package(data, data_rate):
     """
     data = convolutional_encoder(data, coding_rate)
 
+    """
+    h) Divide the encoded bit string into groups of 'coded_bits_symbol' bits. Within each group, perform an
+    “interleaving” (reordering) of the bits according to a rule corresponding to the TXVECTOR
+    parameter RATE. Refer to 17.3.5.7 for details.
+    """
+    groups = wrap(data, coded_bits_symbol)
+    interleaved_groups = [interleaver(group, coded_bits_symbol, coded_bits_subcarrier) for group in groups]
+    data = ''.join(interleaved_groups)
+
+    """
+    i) Divide the resulting coded and interleaved data string into groups of 'coded_bits_subcarrier' bits. For each of the bit
+    groups, convert the bit group into a complex number according to the modulation encoding tables.
+    Refer to 17.3.5.8 for details.
+    """
+    groups = wrap(data, coded_bits_subcarrier)
+    data_complex = np.array([mapper(group, coded_bits_subcarrier) for group in groups])
+
+    """
+    j) Divide the complex number string into groups of 48 complex numbers. Each such group is
+    associated with one OFDM symbol. In each group, the complex numbers are numbered 0 to 47 and
+    mapped hereafter into OFDM subcarriers numbered –26 to –22, –20 to –8, –6 to –1, 1 to 6, 8 to 20,
+    and 22 to 26. The subcarriers –21, –7, 7, and 21 are skipped and, subsequently, used for inserting
+    pilot subcarriers. The 0 subcarrier, associated with center frequency, is omitted and filled with the
+    value 0. Refer to 17.3.5.10 for details.
+    """
+    ofdm_symbols = np.reshape(data_complex, (-1, 48))
+    ofdm_symbols = [map_to_carriers(symbol) for symbol in ofdm_symbols]
+
+    """
+    k) Four subcarriers are inserted as pilots into positions –21, –7, 7, and 21.
+    Refer to 17.3.5.9 for details.
+    """
+    ofdm_symbols = [insert_pilots(symbol, symbol_i + 1) for symbol_i, symbol in enumerate(ofdm_symbols)]
+
+    """
+    l) For each group of subcarriers –26 to 26, convert the subcarriers to time domain using inverse
+    Fourier transform. Prepend to the Fourier-transformed waveform a circular extension of itself thus
+    forming a GI, and truncate the resulting periodic waveform to a single OFDM symbol length by
+    applying time domain windowing. Refer to 17.3.5.10 for details.
+    """
+    data_time_domain = [ifft_guard(symbol) for symbol in ofdm_symbols]
+
+    for i in range(1, len(data_time_domain)):
+        data_time_domain[i][0] = (data_time_domain[i-1][-64] + data_time_domain[i][0]) / 2
+
+    data_time_domain = np.concatenate(data_time_domain)
+
+    """
+    m) Append the OFDM symbols one after another, starting after the SIGNAL symbol describing the
+    RATE and LENGTH fields. Refer to 17.3.5.10 for details.
+    """
+    #     # time windowing method as discussed in "17.3.2.6 Discrete time implementation considerations"
+    # merge preamble with header
+    # pre[-1] = (pre[-1] + header_time_domain[0]) / 2
+    header_time_domain[0] = (pre[-64] + header_time_domain[0]) / 2
+    data_time_domain[0] = (header_time_domain[-64] + data_time_domain[0]) / 2
+    result = np.concatenate([pre, header_time_domain, data_time_domain, [data_time_domain[-64]/2]])
+    return result
     pass
     # return sig
 
