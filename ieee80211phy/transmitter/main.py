@@ -1,5 +1,6 @@
 import numpy as np
 
+from ieee80211phy.transmitter.convolutional_encoder import convolutional_encoder
 from ieee80211phy.transmitter.preamble import preamble
 from ieee80211phy.transmitter.scrambler import scrambler
 from ieee80211phy.transmitter.signal_field import signal_field
@@ -132,6 +133,7 @@ def build_package(data, data_rate):
     some of the encoder output string (chosen according to “puncturing pattern”) to reach the “coding
     rate” corresponding to the TXVECTOR parameter RATE. Refer to 17.3.5.6 for details.
     """
+    data = convolutional_encoder(data, coding_rate)
 
     pass
     # return sig
@@ -147,11 +149,16 @@ def hex_to_bitstr(hstr):
     num_of_bits = int(len(my_hexdata) * np.log2(scale))
     return bin(int(my_hexdata, scale))[2:].zfill(num_of_bits)
 
+def flip_byte_endian(bitstr):
+    from textwrap import wrap
+    bytes = wrap(bitstr, 8)
+    flipped = [x[::-1] for x in bytes]
+    return ''.join(flipped)
 
 def test_():
     # Table I-1—The message for the BCC example
     data = '0x0402002E006008CD37A60020D6013CF1006008AD3BAF00004A6F792C2062726967687420737061726B206F6620646976696E6974792C0A4461756768746572206F6620456C797369756D2C0A466972652D696E73697265642077652074726561673321B6'
-    bin = hex_to_bitstr(data)
+    bin = flip_byte_endian(hex_to_bitstr(data))
 
     package_iq = build_package(bin, data_rate=36)
     pass
