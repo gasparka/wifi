@@ -196,7 +196,6 @@ def build_package(data, data_rate):
     # result = np.concatenate([train_short, train_long, header_time_domain, data_time_domain])
     # return result
 
-
     # time windowing method as discussed in "17.3.2.6 Discrete time implementation considerations"
     train_short[0] = train_short[0] / 2
     # merge short and long training sequence
@@ -213,9 +212,9 @@ def build_package(data, data_rate):
         data_time_domain[i][0] = (data_time_domain[i - 1][-64] + data_time_domain[i][0]) / 2
     data_time_domain = np.concatenate(data_time_domain)
 
-    result = np.concatenate([train_short, train_long, header_time_domain, data_time_domain, [data_time_domain[-64] / 2]])
+    result = np.concatenate(
+        [train_short, train_long, header_time_domain, data_time_domain, [data_time_domain[-64] / 2]])
     return result
-
 
 
 def hex_to_bitstr(hstr):
@@ -443,3 +442,52 @@ def test_annexi():
 
     output = np.round(build_package(input, data_rate=36), 3)
     np.testing.assert_equal(output, expected)
+
+
+def tx_generator(data, data_rate):
+    train_short = short_training_sequence()
+    train_long = long_training_sequence()
+
+    modulation, coding_rate, coded_bits_subcarrier, coded_bits_symbol, data_bits_symbol = get_params_from_rate(
+        data_rate)
+
+    service = '0' * 16
+    tail = '0' * 6
+    data = service + data + tail
+
+    n_symbols = int(np.ceil(len(data) / coded_bits_symbol)) # TODO: changed to coded bits, becaue i have no coding!
+    n_data = n_symbols * coded_bits_symbol # TODO: changed to coded bits, becaue i have no coding!
+    n_pad = int(n_data - len(data))
+    pad = '0' * n_pad
+    print(f'Symbols: {n_symbols} Padding: {n_pad}')
+
+    data = data + pad
+
+    groups = wrap(data, coded_bits_subcarrier)
+    data_complex = np.array([mapper(group, coded_bits_subcarrier) for group in groups]).flatten()
+
+    ofdm_symbols_pure = np.reshape(data_complex, (-1, 48))
+    ofdm_symbols = [map_to_carriers(symbol) for symbol in ofdm_symbols_pure]
+
+    ofdm_symbols = [insert_pilots(symbol, symbol_i + 1) for symbol_i, symbol in enumerate(ofdm_symbols)]
+
+    data_time_domain = [ifft_guard(symbol) for symbol in ofdm_symbols]
+
+    # time windowing method as discussed in "17.3.2.6 Discrete time implementation considerations"
+    train_short[0] = train_short[0] / 2
+    train_long[0] = (train_short[-64] + train_long[0]) / 2
+    data_time_domain[0][0] = (train_long[-64] + data_time_domain[0][0]) / 2
+
+    for i in range(1, len(data_time_domain)):
+        data_time_domain[i][0] = (data_time_domain[i - 1][-64] + data_time_domain[i][0]) / 2
+    data_time_domain = np.concatenate(data_time_domain)
+
+    result = np.concatenate(
+        [train_short, train_long, data_time_domain, [data_time_domain[-64] / 2]])
+    return result, data_complex, ofdm_symbols_pure
+
+
+def test_lol():
+    data = ''.join('1' if x else '0' for x in np.random.randint(2, size=2138))
+    print(data)
+    tx = tx_generator(data, data_rate=36)

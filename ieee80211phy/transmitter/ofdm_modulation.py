@@ -98,6 +98,18 @@ def map_to_carriers(symbol):
     return carrier
 
 
+def demap_from_carriers(carrier):
+    symbol = [carrier[-26], carrier[-25], carrier[-24], carrier[-23], carrier[-22], carrier[-20], carrier[-19],
+              carrier[-18], carrier[-17], carrier[-16], carrier[-15], carrier[-14], carrier[-13], carrier[-12],
+              carrier[-11], carrier[-10], carrier[-9], carrier[-8], carrier[-6], carrier[-5], carrier[-4], carrier[-3],
+              carrier[-2], carrier[-1], carrier[1], carrier[2], carrier[3], carrier[4], carrier[5], carrier[6],
+              carrier[8], carrier[9], carrier[10], carrier[11], carrier[12], carrier[13], carrier[14], carrier[15],
+              carrier[16], carrier[17], carrier[18], carrier[19], carrier[20], carrier[22], carrier[23], carrier[24],
+              carrier[25], carrier[26]]
+
+    return symbol
+
+
 def insert_pilots(ofdm_symbol, i):
     """
         k) Four subcarriers are inserted as pilots into positions -21, -7, 7, and 21. The total number of the
@@ -115,9 +127,12 @@ def insert_pilots(ofdm_symbol, i):
     """
 
     polarity = [1, 1, 1, 1, -1, -1, -1, 1, -1, -1, -1, -1, 1, 1, -1, 1, -1, -1, 1, 1, -1, 1, 1, -1, 1, 1, 1, 1, 1, 1,
-                -1, 1, 1, 1, -1, 1, 1, -1, -1, 1, 1, 1, -1, 1, -1, -1, -1, 1, -1, 1, -1, -1, 1, -1, -1, 1, 1, 1, 1, 1, -1, -1,
-                1, 1, -1, -1, 1, -1, 1, -1, 1, 1, -1, -1, -1, 1, 1, -1, -1, -1, -1, 1, -1, -1, 1, -1, 1, 1, 1, 1, -1, 1, -1,
-                1, -1, 1, -1, -1, -1, -1, -1, 1, -1, 1, 1, -1, 1, -1, 1, 1, 1, -1, -1, 1, -1, -1, -1, 1, 1, 1, -1, -1, -1, -1, -1,
+                -1, 1, 1, 1, -1, 1, 1, -1, -1, 1, 1, 1, -1, 1, -1, -1, -1, 1, -1, 1, -1, -1, 1, -1, -1, 1, 1, 1, 1, 1,
+                -1, -1,
+                1, 1, -1, -1, 1, -1, 1, -1, 1, 1, -1, -1, -1, 1, 1, -1, -1, -1, -1, 1, -1, -1, 1, -1, 1, 1, 1, 1, -1, 1,
+                -1,
+                1, -1, 1, -1, -1, -1, -1, -1, 1, -1, 1, 1, -1, 1, -1, 1, 1, 1, -1, -1, 1, -1, -1, -1, 1, 1, 1, -1, -1,
+                -1, -1, -1,
                 -1, -1]
     pilots = np.array([1, 1, 1, -1]) * polarity[i % 128]
     ofdm_symbol[-21] = pilots[0]

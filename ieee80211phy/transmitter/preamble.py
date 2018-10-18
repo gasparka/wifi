@@ -44,6 +44,21 @@ def short_training_sequence():
     return np.array(short_training).astype(np.complex64)
 
 
+def long_train_symbol():
+    long_train = [0, 0, 0, 0, 0, 0, 1, 1, -1, -1, 1, 1, -1, 1, -1, 1, 1, 1, 1, 1, 1, -1, -1, 1, 1, -1, 1, -1, 1, 1, 1,
+                  1,
+                  0,
+                  1, -1, -1, 1, 1, -1, 1, -1, 1, -1, -1, -1, -1, -1, 1, 1, -1, -1, 1, -1, 1, -1, 1, 1, 1, 1, 0, 0, 0, 0,
+                  0]
+    long_time = []
+    for i in range(64):
+        v = 0.0
+        for m in range(-32, 32):
+            v += long_train[m + 32] * np.exp(1j * 2 * np.pi * i * m / 64)
+        long_time.append(v / 64)
+    return long_time
+
+
 def long_training_sequence():
     """
     A long OFDM training symbol consists of 53 subcarriers (including the value 0 at dc).

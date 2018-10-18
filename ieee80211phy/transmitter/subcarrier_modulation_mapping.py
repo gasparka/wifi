@@ -24,10 +24,16 @@ The purpose of the normalization factor is to achieve the same average power for
 """
 import numpy as np
 
+
 BPSK_LUT_NORM = np.array(BPSK_LUT)
 QPSK_LUT_NORM = np.array(QPSK_LUT) / np.sqrt(2)
 QAM16_LUT_NORM = np.array(QAM16_LUT) / np.sqrt(10)
 QAM64_LUT_NORM = np.array(QAM64_LUT) / np.sqrt(42)
+
+def get_reference_power():
+    i = list(range(16))
+    symbols = [QAM16_LUT_NORM[i>>2] + QAM16_LUT_NORM[i&3] * 1j for i in range(16)]
+
 
 
 def mapper(bits, bits_per_symbol=1):
