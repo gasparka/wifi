@@ -19,11 +19,12 @@ class Equalizer:
 
         if debug:
             plt.figure(figsize=(9.75, 5))
-            plt.plot(avg_train)
-            plt.plot(first_train)
-            plt.plot(second_train)
-            plt.plot(ideal_long)
+            plt.plot(avg_train, label='avg')
+            plt.plot(first_train, label='first')
+            plt.plot(second_train, label='second')
+            plt.plot(ideal_long, label='ideal')
             plt.tight_layout()
+            plt.legend()
             plt.grid()
 
             plt.figure(figsize=(9.75, 5))

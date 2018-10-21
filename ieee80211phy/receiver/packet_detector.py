@@ -10,10 +10,10 @@ def moving_average(inputs, window_len):
 
 def packet_detector(input, debug=False):
     autocorr = (input[:-16] * np.conjugate(input[16:])).real
-    autocorr = moving_average(autocorr, 32)
+    autocorr = moving_average(autocorr, 8)
 
     power = (input * np.conjugate(input)).real
-    power = moving_average(power, 32)
+    power = moving_average(power, 8)
 
     # valid packet will have ratio near 1.0
     ratio = [1.0 if x else -1.0 for x in autocorr >= 0.5 * power[:len(autocorr)]]
