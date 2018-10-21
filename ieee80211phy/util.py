@@ -1,9 +1,42 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy import signal
 
 
 def power(x):
     return (x * np.conjugate(x)).real
+
+
+def SQNR(pure, noisy):
+    sig_pow = np.mean(np.abs(pure))
+    error = np.array(pure) - np.array(noisy)
+    err_pow = np.mean(np.abs(error))
+
+    snr_db = 20 * np.log10(sig_pow / err_pow)
+    return snr_db
+
+
+def awgn(iq, snr):
+    mean_square = np.mean((iq * np.conjugate(iq)).real)
+    noise_power = mean_square / (10 ** (snr / 10))
+    std_noise = np.sqrt(noise_power)
+    noise = std_noise * (0.70711 * np.random.randn(len(iq)) + 0.70711 * np.random.randn(len(iq)) * 1j)
+
+    return noise + iq
+
+
+def moving_average(inputs, window_len):
+    taps = [1 / window_len] * window_len
+    return signal.lfilter(taps, [1.0], inputs)
+
+
+def mixer(signal, lo_freq, fs):
+    phase_inc = 2 * np.pi * lo_freq / fs
+    phase_list = np.array(range(len(signal))) * phase_inc
+    lo = np.exp(phase_list * 1j)
+
+    mixed = signal * lo
+    return mixed
 
 
 def evm_db(rx, reference):
