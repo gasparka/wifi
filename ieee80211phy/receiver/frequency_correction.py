@@ -6,13 +6,14 @@ import matplotlib.pyplot as plt
 def fix_frequency_offset_coarse(rx, start_of_long_training, debug=False):
     # coarse offset - quite unreliable on noisy signal
     autocorrelation = rx[:-16] * np.conjugate(rx[16:])
-    avg = moving_average(autocorrelation, 32)
+    avg = moving_average(autocorrelation, 8)
     angle = np.angle(avg)
     angle = moving_average(angle, 64)
-
+    # angle = moving_average(angle, 64)
     freq_error = angle * (20e6 / (2 * np.pi * 16))
 
-    index = start_of_long_training-42
+    index = start_of_long_training-25
+    print(angle[index])
     freq_error_selected = freq_error[index]
     print(f'Coarse freq error is {freq_error_selected}')
 

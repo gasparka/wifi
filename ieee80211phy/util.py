@@ -58,6 +58,7 @@ def evm_vs_time(rx, ref):
 
 
 def plot_rx(rx_symbols, reference_symbols):
+    rx_symbols = np.array(rx_symbols)
     figsize = (9.75, 10)
     fig, ax = plt.subplots(3, figsize=figsize, gridspec_kw={'height_ratios': [4, 2, 2]})
 

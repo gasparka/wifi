@@ -23,16 +23,16 @@ def packet_detector(input, debug=False):
     det = []
     threshold = 0.8
     for i in range(len(ratio)):
-        if ratio[i] > 0.75:
+        if ratio[i] >= 1.0:
             detection = 1
-        elif ratio[i] < 0.75:
+        elif ratio[i] < 0.77:
             detection = 0
         det.append(detection)
 
     # return the first packet
     start_of_long_training_index = 0
     try:
-        start_of_long_training_index = np.where(np.diff(det) == -1)[0][0] - 18 # -30 to correct the position!
+        start_of_long_training_index = np.where(np.diff(det) == -1)[0][0]
     except:
         pass
 
