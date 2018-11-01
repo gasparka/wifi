@@ -24,16 +24,15 @@ The purpose of the normalization factor is to achieve the same average power for
 """
 import numpy as np
 
-
 BPSK_LUT_NORM = np.array(BPSK_LUT)
 QPSK_LUT_NORM = np.array(QPSK_LUT) / np.sqrt(2)
 QAM16_LUT_NORM = np.array(QAM16_LUT) / np.sqrt(10)
 QAM64_LUT_NORM = np.array(QAM64_LUT) / np.sqrt(42)
 
+
 def get_reference_power():
     i = list(range(16))
-    symbols = [QAM16_LUT_NORM[i>>2] + QAM16_LUT_NORM[i&3] * 1j for i in range(16)]
-
+    symbols = [QAM16_LUT_NORM[i >> 2] + QAM16_LUT_NORM[i & 3] * 1j for i in range(16)]
 
 
 def mapper(bits, bits_per_symbol=1):
@@ -59,6 +58,38 @@ def mapper(bits, bits_per_symbol=1):
 
         out.append(symbol)
     return out
+
+
+def mapper_decide(symbol, bits_per_symbol=1):
+    if bits_per_symbol == 1:  # BPSK
+        real = BPSK_LUT_NORM[1] if symbol.real >= 0 else BPSK_LUT_NORM[0]
+        imag = 0.0j
+        return real + imag
+    elif bits_per_symbol == 2:  # QPSK
+        real = QPSK_LUT_NORM[1] if symbol.real >= 0 else QPSK_LUT_NORM[0]
+        imag = QPSK_LUT_NORM[1] if symbol.imag >= 0 else QPSK_LUT_NORM[0]
+        return real + imag
+    elif bits_per_symbol == 4:
+        tick_gain = 1 / np.sqrt(10)
+        if symbol.real < -2*tick_gain:
+            real = -3
+        elif symbol.real < 0:
+            real = -1
+        elif symbol.real < 2 * tick_gain:
+            real = 1
+        else:
+            real = 3
+
+        if symbol.imag < -2*tick_gain:
+            imag = -3
+        elif symbol.imag < 0:
+            imag = -1
+        elif symbol.imag < 2 * tick_gain:
+            imag = 1
+        else:
+            imag = 3
+
+        return (real + imag*1j) * tick_gain
 
 
 def test_i163():

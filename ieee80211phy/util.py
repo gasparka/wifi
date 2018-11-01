@@ -1,6 +1,11 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import scipy
 from scipy import signal
+
+
+def default_reference_symbols():
+    return np.load('/home/gaspar/git/ieee80211phy/data/default_reference_symbols.npy')
 
 
 def power(x):
@@ -23,6 +28,15 @@ def awgn(iq, snr):
     noise = std_noise * (0.70711 * np.random.randn(len(iq)) + 0.70711 * np.random.randn(len(iq)) * 1j)
 
     return noise + iq
+
+
+def timing_offseset(tx, delay):
+    in_index = np.arange(0, len(tx), 1)
+    out_index = np.arange(0, len(tx), 1 + delay)
+    print(f'Max err: {delay*len(tx)}')
+
+    wat = scipy.interpolate.interp1d(in_index, tx, kind='slinear', fill_value='extrapolate')
+    return wat(out_index)
 
 
 def moving_average(inputs, window_len):
@@ -57,8 +71,11 @@ def evm_vs_time(rx, ref):
     return [evm_db(crx, cref) for crx, cref in zip(rx, ref)]
 
 
-def plot_rx(rx_symbols, reference_symbols):
+def plot_rx(rx_symbols, reference_symbols=None):
     rx_symbols = np.array(rx_symbols)
+    if reference_symbols is None:
+        reference_symbols = rx_symbols
+
     figsize = (9.75, 10)
     fig, ax = plt.subplots(3, figsize=figsize, gridspec_kw={'height_ratios': [4, 2, 2]})
 
@@ -73,10 +90,18 @@ def plot_rx(rx_symbols, reference_symbols):
     ax[0].set_ylabel('Imag')
 
     # evm vs carrier
-
     evm_carrier = evm_vs_carrier(rx_symbols, reference_symbols)
+    ids = [-26, -25, -24, -23, -22,
+           -20, -19, -18, -17, -16, -15, -14, -13, -12, -11, -10, -9, -8,
+           -6, -5, -4, -3, -2, -1,
+           1, 2, 3, 4, 5, 6,
+           8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
+           22, 23, 24, 25, 26]
+
     ax[1].set(title=f'EVM vs carriers')
-    ax[1].plot(evm_carrier)
+    ax[1].scatter(ids, evm_carrier)
+    ax[1].set_xticks(ids)
+    ax[1].set_xticklabels(ids, rotation=45)
     ax[1].grid(True)
     ax[1].set_xlabel('Carrier')
     ax[1].set_ylabel('EVM')

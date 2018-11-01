@@ -119,7 +119,7 @@ def demap_from_carriers(carrier):
 
 
 def get_derotated_pilots(carrier, symbol_number):
-    pilots = np.array([carrier[-21], carrier[-7], carrier[7], -carrier[21]]) * PILOT_POLARITY[symbol_number % 128]
+    pilots = np.array([carrier[-21], carrier[-7], carrier[7], -carrier[21]]) * PILOT_POLARITY[symbol_number % 127]
     return pilots
 
 
@@ -139,7 +139,7 @@ def insert_pilots(ofdm_symbol, i):
     :return:
     """
 
-    pilots = np.array([1, 1, 1, -1]) * PILOT_POLARITY[i % 128]
+    pilots = np.array([1, 1, 1, -1]) * PILOT_POLARITY[i % 127]
     ofdm_symbol[-21] = pilots[0]
     ofdm_symbol[-7] = pilots[1]
     ofdm_symbol[7] = pilots[2]
