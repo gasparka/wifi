@@ -6,6 +6,8 @@ constellation points. The conversion shall be performed according to Gray-coded 
 """
 
 # For BPSK, LUT[B0] determines the I value, Q is always 0
+from ieee80211phy.util import awgn
+
 BPSK_LUT = [-1, 1]
 
 # For QPSK, LUT[B0] determines the I value and LUT[B1] determines the Q value
@@ -90,6 +92,24 @@ def mapper_decide(symbol, bits_per_symbol=1):
             imag = 3
 
         return (real + imag*1j) * tick_gain
+
+
+def test_mapper_decider():
+    input = np.hstack([(-0.316 + 0.316j), (-0.316 + 0.316j), (0.316 + 0.316j), (-0.949 - 0.949j), (0.316 + 0.949j),
+             (0.316 + 0.316j), (0.316 - 0.949j), (-0.316 - 0.949j), (-0.316 + 0.316j), (-0.949 + 0.316j),
+             (-0.949 - 0.949j), (-0.949 - 0.949j), (0.949 + 0.316j), (0.316 + 0.316j), (-0.949 - 0.316j),
+             (-0.949 - 0.316j), (-0.949 - 0.316j), (-0.949 - 0.949j), (0.949 - 0.316j), (0.949 + 0.949j),
+             (-0.949 - 0.316j), (0.316 - 0.316j), (-0.949 - 0.316j), (-0.949 + 0.949j), (-0.316 + 0.949j),
+             (0.316 + 0.949j), (-0.949 + 0.316j), (0.949 - 0.949j), (0.316 + 0.316j), (-0.316 - 0.316j),
+             (-0.316 + 0.949j), (0.949 - 0.316j), (-0.949 - 0.316j), (0.949 + 0.316j), (-0.316 + 0.949j),
+             (0.949 + 0.316j), (0.949 - 0.316j), (0.949 - 0.949j), (-0.316 - 0.949j), (-0.949 + 0.316j),
+             (-0.949 - 0.949j), (-0.949 - 0.949j), (-0.949 - 0.949j), (0.316 - 0.316j), (0.949 + 0.316j),
+             (-0.949 + 0.316j), (-0.316 + 0.949j), (0.316 - 0.316j)] * 128)
+
+    noisy = awgn(input, 25)
+    decided = [mapper_decide(x, 4) for x in noisy]
+    np.testing.assert_allclose(np.round(decided, 3), input)
+
 
 
 def test_i163():

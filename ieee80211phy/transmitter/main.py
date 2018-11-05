@@ -1,3 +1,4 @@
+import logging
 from textwrap import wrap
 
 import numpy as np
@@ -10,6 +11,9 @@ from ieee80211phy.transmitter.scrambler import scrambler
 from ieee80211phy.transmitter.signal_field import signal_field
 from ieee80211phy.transmitter.subcarrier_modulation_mapping import mapper
 
+
+logging.basicConfig(level=logging.DEBUG)
+log = logging.getLogger('tx')
 
 def get_params_from_rate(data_rate):
     """
@@ -83,7 +87,9 @@ def build_package(data, data_rate):
     described subsequently for data transmission with BPSK-OFDM modulated at coding rate 1/2. The
     contents of the SIGNAL field are not scrambled. Refer to 17.3.4 for details.
     """
-    header_bits = signal_field(data_rate, length_bytes=len(wrap(data, 8)))
+    n_bytes = len(wrap(data, 8))
+    log.info(f'Packing {n_bytes} bytes')
+    header_bits = signal_field(data_rate, length_bytes=n_bytes)
     header_conv = convolutional_encoder(header_bits, '1/2')
     header_interleav = interleaver(header_conv, coded_bits_symbol=48, coded_bits_subcarrier=1)
     header_mapped = mapper(header_interleav, bits_per_symbol=1)
@@ -123,6 +129,7 @@ def build_package(data, data_rate):
     pad = '0' * n_pad
 
     data = data + pad
+    log.info(f'{n_symbols} symbols. {n_pad} padding bits added')
 
     """
     e) If the TXVECTOR parameter CH_BANDWIDTH_IN_NON_HT is not present, initiate the

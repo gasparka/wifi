@@ -29,11 +29,11 @@ class Receiver:
         self.equalizer_taps = 1 / channel_estimate
 
         # parse the payload
-        # TODO: should skip signal field here?
         data_rx = iq[start_of_long_training + 160:start_of_long_training + 160 + (n_symbols * 80)]
-        groups = np.reshape(data_rx, (n_symbols, 80))
+        signal_field = data_rx[:80]    # TODO: should skip signal field here?
+        data = np.reshape(data_rx[80:], (-1, 80))
         output_symbols = []
-        for symbol_number, group in enumerate(groups):
+        for symbol_number, group in enumerate(data):
             # 1. strip GI and get symbols
             start = 16 + self.sample_advance
             symbols = np.fft.fft(group[start:start + 64])
@@ -48,26 +48,50 @@ class Receiver:
 
     def plot_channel_estimate(self):
         """
-
+        Rising trend in the phase response is due to the 'sample_advance' parameter.
         """
 
-        plt.figure(figsize=(9.75, 5))
+        fig, ax = plt.subplots(2, figsize=(9.75, 6), sharex='all')
         plt.title('Equalizers effect to each carrier')
         taps = np.fft.fftshift(self.equalizer_taps)
         mag = 20 * np.log10(taps)
-        deg = np.degrees(np.angle(taps))
-        plt.plot(np.arange(-32, 32), mag, label='magnitude [dB]')
-        plt.plot(np.arange(-32, 32), deg, label='angle [deg]')
-        plt.ylim([-60, max(mag.max(), deg.max())])
+        deg = np.degrees(np.unwrap(np.angle(taps)))
+        ax[0].set_title('Magnitude response')
+        ax[0].plot(np.arange(-32, 32), mag)
+        ax[0].set_ylim([mag.max()-12, mag.max()+6])
+        ax[0].set_ylabel('Magnitude dB')
+        ax[0].grid(True)
+        ax[1].set_title('Phase response (unwrapped)')
+        ax[1].plot(np.arange(-32, 32), deg)
+        ax[1].set_ylabel('Angle [deg]')
+        ax[1].set_xlabel('Carrier index')
+        ax[1].grid(True)
         plt.tight_layout()
-        plt.legend()
-        plt.grid()
 
 
 def test_limemini_wire_loopback():
+    """
+    This was recorded with single LimeSDR-Mini, Tx port was connected to Rx with a cable.
+    Gains were quite high. Looks like this setup has no frequency offset or timing offset.
+    """
     iq = np.load('/home/gaspar/git/ieee80211phy/data/limemini_wire_loopback.npy')
     r = Receiver(sample_advance=-3)
     symbols = r.main(iq, n_symbols=109)
 
-    evm = evm_db(symbols, default_reference_symbols())
+    evm = evm_db(symbols, default_reference_symbols()[1:])
     assert int(evm) == -30
+
+
+def test_limemini_air():
+    """
+    Similiar to previous, but onver the air.
+    """
+
+    iq = np.load('/home/gaspar/git/ieee80211phy/data/limemini_air.npy')
+    r = Receiver(sample_advance=-3)
+    symbols = r.main(iq, n_symbols=229)
+
+    from ieee80211phy.transmitter.subcarrier_modulation_mapping import mapper_decide
+    reference_symbols = np.array([[mapper_decide(j, 4) for j in x] for x in symbols])
+    evm = evm_db(symbols, reference_symbols)
+    assert int(evm) == -25

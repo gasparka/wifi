@@ -1,10 +1,15 @@
+import logging
+
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy
 from scipy import signal
 
+logging.basicConfig(level=logging.DEBUG)
+log = logging.getLogger('util')
 
 def default_reference_symbols():
+    """ QAM16 symbols sent by the examples in the IEE802.11 document """
     return np.load('/home/gaspar/git/ieee80211phy/data/default_reference_symbols.npy')
 
 
@@ -43,6 +48,13 @@ def moving_average(inputs, window_len):
     taps = [1 / window_len] * window_len
     return signal.lfilter(taps, [1.0], inputs)
 
+def moving_average_valid(inputs, window_len):
+    """
+    Skips the initial transient.
+    """
+    inputs = np.concatenate([[inputs[0]] * window_len, inputs])
+    return moving_average(inputs, window_len)[window_len:]
+
 
 def mixer(signal, lo_freq, fs):
     phase_inc = 2 * np.pi * lo_freq / fs
@@ -74,7 +86,11 @@ def evm_vs_time(rx, ref):
 def plot_rx(rx_symbols, reference_symbols=None):
     rx_symbols = np.array(rx_symbols)
     if reference_symbols is None:
-        reference_symbols = rx_symbols
+        log.warning('Using decicion for reference symbols! EVM may be misleading!')
+        print(rx_symbols)
+        from ieee80211phy.transmitter.subcarrier_modulation_mapping import mapper_decide
+        reference_symbols = np.array([[mapper_decide(j, 4) for j in x] for x in rx_symbols]) #TODO: remove this shit code
+        print(reference_symbols)
 
     figsize = (9.75, 10)
     fig, ax = plt.subplots(3, figsize=figsize, gridspec_kw={'height_ratios': [4, 2, 2]})
@@ -110,6 +126,7 @@ def plot_rx(rx_symbols, reference_symbols=None):
     evm_time = evm_vs_time(rx_symbols, reference_symbols)
     ax[2].set(title=f'EVM vs time')
     ax[2].plot(evm_time)
+    ax[2].plot(moving_average_valid(evm_time, 32), alpha=0.5)
     ax[2].grid(True)
     ax[2].set_xlabel('OFDM packet')
     ax[2].set_ylabel('EVM')

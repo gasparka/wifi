@@ -54,7 +54,10 @@ def signal_field(data_rate, length_bytes, channel='20M'):
 
     """ The PHY LENGTH field shall be an unsigned 12-bit integer that indicates the number of octets in the PSDU
     that the MAC is currently requesting the PHY to transmit."""
+    if length_bytes > (2**12)-1:
+        raise Exception(f'Maximum bytes in a packet is {(2**12)-1}, you require {length_bytes}')
     length_octets_bin = bin(length_bytes)[2:].zfill(12)[::-1]  # [::-1] stuff is to reverse the string
+    print(length_octets_bin, len(length_octets_bin))
     signal += length_octets_bin
 
     """ Bit 17 shall be a positive parity (evenparity) bit for bits 0–16 """
