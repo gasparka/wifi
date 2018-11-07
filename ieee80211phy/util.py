@@ -52,7 +52,7 @@ def moving_average_valid(inputs, window_len):
     """
     Skips the initial transient.
     """
-    inputs = np.concatenate([[inputs[0]] * window_len, inputs])
+    inputs = np.concatenate([[inputs[0]] * (window_len//2), inputs, [inputs[-1]] * (window_len//2)])
     return moving_average(inputs, window_len)[window_len:]
 
 
@@ -87,10 +87,8 @@ def plot_rx(rx_symbols, reference_symbols=None):
     rx_symbols = np.array(rx_symbols)
     if reference_symbols is None:
         log.warning('Using decicion for reference symbols! EVM may be misleading!')
-        print(rx_symbols)
         from ieee80211phy.transmitter.subcarrier_modulation_mapping import mapper_decide
         reference_symbols = np.array([[mapper_decide(j, 4) for j in x] for x in rx_symbols]) #TODO: remove this shit code
-        print(reference_symbols)
 
     figsize = (9.75, 10)
     fig, ax = plt.subplots(3, figsize=figsize, gridspec_kw={'height_ratios': [4, 2, 2]})
@@ -116,6 +114,7 @@ def plot_rx(rx_symbols, reference_symbols=None):
 
     ax[1].set(title=f'EVM vs carriers')
     ax[1].scatter(ids, evm_carrier)
+    ax[1].plot(ids, moving_average_valid(evm_carrier, 4), alpha=0.5)
     ax[1].set_xticks(ids)
     ax[1].set_xticklabels(ids, rotation=45)
     ax[1].grid(True)

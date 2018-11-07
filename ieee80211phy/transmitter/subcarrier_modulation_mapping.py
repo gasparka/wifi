@@ -37,7 +37,7 @@ def get_reference_power():
     symbols = [QAM16_LUT_NORM[i >> 2] + QAM16_LUT_NORM[i & 3] * 1j for i in range(16)]
 
 
-def mapper(bits, bits_per_symbol=1):
+def mapper(bits, bits_per_symbol):
     from textwrap import wrap
     bits = wrap(bits, bits_per_symbol)
     out = []
@@ -62,7 +62,7 @@ def mapper(bits, bits_per_symbol=1):
     return out
 
 
-def mapper_decide(symbol, bits_per_symbol=1):
+def mapper_decide(symbol, bits_per_symbol):
     if bits_per_symbol == 1:  # BPSK
         real = BPSK_LUT_NORM[1] if symbol.real >= 0 else BPSK_LUT_NORM[0]
         imag = 0.0j

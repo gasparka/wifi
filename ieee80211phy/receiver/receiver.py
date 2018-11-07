@@ -1,9 +1,11 @@
+from ieee80211phy.receiver.frequency_correction import fix_frequency_offset_coarse
 from ieee80211phy.receiver.packet_detector import packet_detector
-from ieee80211phy.transmitter.ofdm_modulation import demap_from_carriers
+from ieee80211phy.transmitter.ofdm_modulation import demap_from_carriers, get_derotated_pilots
 from ieee80211phy.transmitter.preamble import long_train_symbol
 import numpy as np
 import matplotlib.pyplot as plt
 
+from ieee80211phy.transmitter.subcarrier_modulation_mapping import mapper_decide
 from ieee80211phy.util import evm_db, default_reference_symbols
 
 
@@ -15,6 +17,8 @@ class Receiver:
 
     def main(self, iq, n_symbols):
         start_of_long_training, _ = packet_detector(iq)
+
+        # iq, error_coarse = fix_frequency_offset_coarse(iq, start_of_long_training, debug=True)
 
         # train the equalizer by using the long training symbols
         ideal_long_freq = np.fft.fft(long_train_symbol())
@@ -33,6 +37,9 @@ class Receiver:
         signal_field = data_rx[:80]    # TODO: should skip signal field here?
         data = np.reshape(data_rx[80:], (-1, 80))
         output_symbols = []
+
+        correction = [0 + 0j] * 8
+        debug_error=[]
         for symbol_number, group in enumerate(data):
             # 1. strip GI and get symbols
             start = 16 + self.sample_advance
@@ -40,6 +47,13 @@ class Receiver:
 
             # 2. equalize the symbols
             equalized_symbols = symbols * self.equalizer_taps
+
+            # 3. remove latent frequency offset by using pilot symbols
+            # i.e. this is the average phase offset that
+            pilots = get_derotated_pilots(equalized_symbols, symbol_number + 1)
+            mean_phase_offset = np.angle(np.mean(pilots))
+            equalized_symbols *= np.exp(-1j * mean_phase_offset)
+            self.equalizer_taps *= np.exp(-1j * mean_phase_offset)
 
             # output
             output_symbols.append(demap_from_carriers(equalized_symbols))
@@ -95,3 +109,19 @@ def test_limemini_air():
     reference_symbols = np.array([[mapper_decide(j, 4) for j in x] for x in symbols])
     evm = evm_db(symbols, reference_symbols)
     assert int(evm) == -25
+
+
+def test_limemini_lime_air():
+    """
+    Lime-Mini as TX and Lime as RX. First test with different devices, resulted in frequency offset - that
+    was best corrected using the pilot symbols!
+    """
+
+    iq = np.load('/home/gaspar/git/ieee80211phy/data/limemini_lime_air.npy')
+    r = Receiver(sample_advance=-3)
+    symbols = r.main(iq, n_symbols=229)
+
+    from ieee80211phy.transmitter.subcarrier_modulation_mapping import mapper_decide
+    reference_symbols = np.array([[mapper_decide(j, 4) for j in x] for x in symbols])
+    evm = evm_db(symbols, reference_symbols)
+    assert int(evm) == -26
