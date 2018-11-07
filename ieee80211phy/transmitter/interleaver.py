@@ -27,24 +27,31 @@ def second_permutation_table(coded_bits_symbol, coded_bits_subcarrier):
     return lut
 
 
-def interleaver(data, coded_bits_symbol, coded_bits_subcarrier):
+def interleaver(data, coded_bits_symbol, coded_bits_subcarrier, undo=False):
     """
     Divide the encoded bit string into groups of NCBPS bits. Within each group, perform an
     “interleaving” (reordering) of the bits according to a rule corresponding to the TXVECTOR
     parameter RATE. Refer to 17.3.5.7 for details.
     """
+
     def apply_permutation(data, table):
         result = ['0'] * len(data)
         for i in range(len(data)):
             result[table[i]] = data[i]
         return ''.join(result)
 
+    def invert_table(table):
+        result = np.array(table)
+        result[table] = np.arange(0, len(result))
+        return result
+
     first_table = first_permutation_table(coded_bits_symbol)
-    data = apply_permutation(data, first_table)
-
     second_table = second_permutation_table(coded_bits_symbol, coded_bits_subcarrier)
-    data = apply_permutation(data, second_table)
+    if undo:
+        # invert and SWAP tables
+        second_table, first_table = invert_table(first_table), invert_table(second_table)
 
+    data = apply_permutation(apply_permutation(data, first_table), second_table)
     return data
 
 
@@ -89,6 +96,10 @@ def test_i143():
     result = interleaver(input, 48, 1)
     assert result == expect
 
+    # test reverse
+    result = interleaver(expect, 48, 1, undo=True)
+    assert result == input
+
 
 def test_i162():
     # IEEE Std 802.11-2016: Table I-16—The BCC encoded DATA bits
@@ -104,3 +115,6 @@ def test_i162():
     result = interleaver(input, 192, 4)
     assert result == expect
 
+    # test reverse
+    result = interleaver(expect, 192, 4, undo=True)
+    assert result == input
