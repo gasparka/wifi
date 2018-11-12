@@ -1,11 +1,60 @@
+from textwrap import wrap
+import numpy as np
+
+from ieee80211phy.util import int_to_binstr, xor_reduce_poly
+
+# config
+K = 7
+STATES = 2 ** (K - 1)
+G0 = int('133', 8)
+G1 = int('171', 8)
+
+# input bit is considered as an additional state (MSb) in this LUT, thus it has (states * 2) values
+OUTPUT_LUT = [(xor_reduce_poly(x, G0) << 1) | xor_reduce_poly(x, G1) for x in range(2 ** K)]
+
+# i: actual_output j: expected output
+ERROR_LUT = [[0, 1, 1, 2],
+             [1, 0, 2, 1],
+             [1, 2, 0, 1],
+             [2, 1, 1, 0]]
+
+
+def convolutional_decoder(rx):
+    def butterfly(state, expected, scores):
+        input_bit = (state << 1) >> (K - 1)  # 0 or 1
+
+        parent1 = (state << 1) % STATES
+        parent1_out = OUTPUT_LUT[(input_bit * STATES) | parent1]
+        parent1_error = ERROR_LUT[parent1_out][expected]
+        parent1_score = scores[parent1][0] + parent1_error
+
+        parent2 = (parent1 + 1) % STATES
+        parent2_out = OUTPUT_LUT[(input_bit * STATES) | parent2]
+        parent2_error = ERROR_LUT[parent2_out][expected]
+        parent2_score = scores[parent2][0] + parent2_error
+
+        if parent1_score < parent2_score:
+            return parent1_score, scores[parent1][1] + str(input_bit)
+        else:
+            return parent2_score, scores[parent2][1] + str(input_bit)
+
+    scores = [(0, '')] + ([(1000, '')] * (STATES - 1))
+    for expect in wrap(rx, 2):
+        scores = [butterfly(i, int(expect, 2), scores) for i in range(len(scores))]
+
+    min_score = np.argmin([x[0] for x in scores])
+    bits = scores[min_score][1]
+    return bits
+
+
 def convolutional_encoder(data, coding_rate):
     output = ''
-    shr = '000000'
+    shr = '0' * (K - 1)
     for bit in data:
-        out_a = int(bit) ^ int(shr[1]) ^ int(shr[2]) ^ int(shr[4]) ^ int(shr[5])
-        out_b = int(bit) ^ int(shr[0]) ^ int(shr[1]) ^ int(shr[2]) ^ int(shr[5])
-        output += str(out_a) + str(out_b)
-        shr = bit + shr[:-1]  # advance the shift register
+
+        i = bit + shr
+        output += int_to_binstr(OUTPUT_LUT[int(i, 2)], bits=2)
+        shr = i[:-1]  # advance the shift register
 
     """
     Puncturing is a procedure for omitting some of the encoded bits in the transmitter 
@@ -35,6 +84,16 @@ def test_signal():
     expected = '110100011010000100000010001111100111000000000000'
     output = convolutional_encoder(input, coding_rate='1/2')
     assert output == expected
+
+    # test decoding
+    decoded = convolutional_decoder(output)
+    assert decoded == input
+
+    # test decoding with bit errors
+    # 4 errors
+    output = '010100011010100101000010001111100111000000100000'
+    decoded = convolutional_decoder(output)
+    assert decoded == input
 
 
 def test_i161():

@@ -8,6 +8,16 @@ from scipy import signal
 logging.basicConfig(level=logging.DEBUG)
 log = logging.getLogger('util')
 
+
+def int_to_binstr(x, bits):
+    # [2:] skips the '0b' string
+    return bin(x)[2:].zfill(bits)
+
+
+def xor_reduce_poly(data, poly):
+    """ XOR reduces bits that are selected by the 'poly' """
+    return int(bin(data & poly).count('1') & 1)
+
 def default_reference_symbols():
     """ QAM16 symbols sent by the examples in the IEE802.11 document """
     return np.load('/home/gaspar/git/ieee80211phy/data/default_reference_symbols.npy')
