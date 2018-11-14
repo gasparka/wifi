@@ -3,7 +3,6 @@ from textwrap import wrap
 
 import numpy as np
 
-from ieee80211phy.transmitter.convolutional_encoder import convolutional_encoder
 from ieee80211phy.transmitter.interleaver import interleaver
 from ieee80211phy.transmitter.ofdm_modulation import map_to_carriers, insert_pilots, ifft_guard
 from ieee80211phy.transmitter.preamble import short_training_sequence, long_training_sequence

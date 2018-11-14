@@ -1,7 +1,9 @@
+import logging
 from textwrap import wrap
 import numpy as np
-
 from ieee80211phy.util import int_to_binstr, xor_reduce_poly
+
+logger = logging.getLogger(__name__)
 
 # config
 K = 7
@@ -12,25 +14,57 @@ G1 = int('171', 8)
 # input bit is considered as an additional state (MSb) in this LUT, thus it has (states * 2) values
 OUTPUT_LUT = [(xor_reduce_poly(x, G0) << 1) | xor_reduce_poly(x, G1) for x in range(2 ** K)]
 
-# i: actual_output j: expected output
-ERROR_LUT = [[0, 1, 1, 2],
-             [1, 0, 2, 1],
-             [1, 2, 0, 1],
-             [2, 1, 1, 0]]
+
+def _puncture(data, rate, undo=False):
+    """
+    Puncturing is a procedure for omitting some of the encoded bits in the transmitter
+    (thus reducing the number of transmitted bits and increasing the coding rate)
+    and inserting a dummy “zero” metric into the convolutional decoder on the
+    receive side in place of the omitted bits. The puncturing patterns are illustrated in Figure 17-9.
+    """
+
+    if undo:
+        # un-puncturing process i.e. add 'X' characters that are ignored by the error calculation
+        if rate == '3/4':
+            data = [d[:3] + 'XX' + d[3] for d in wrap(data, 4)]
+        elif rate == '2/3':
+            data = [d + 'X' for d in wrap(data, 3)]
+    else:
+        if rate == '2/3':
+            # throw out ech 3. bit in a block of 4
+            data = [bit for i, bit in enumerate(data) if (i % 4) != 3]
+        elif rate == '3/4':
+            # throw out each 3. and 4. bit in a block of 6 bits
+            data = [bit for i, bit in enumerate(data) if (i % 6) != 3 and (i % 6) != 4]
+    return ''.join(data)
 
 
-def convolutional_decoder(rx):
+def conv_decode(rx, coding_rate='1/2'):
+    """ See 'Bits, Signals, and Packets: An Introduction to Digital Communications and Networks' ->
+        'Viterbi Decoding of Convolutional Codes (PDF - 1.4MB)'
+    """
+
     def butterfly(state, expected, scores):
+        def error(acutal, expected):
+            ret = 0
+            if acutal[0] != expected[0] and expected[0] != 'X':
+                ret += 1
+
+            if acutal[1] != expected[1] and expected[1] != 'X':
+                ret += 1
+
+            return ret
+
         input_bit = (state << 1) >> (K - 1)  # 0 or 1
 
         parent1 = (state << 1) % STATES
-        parent1_out = OUTPUT_LUT[(input_bit * STATES) | parent1]
-        parent1_error = ERROR_LUT[parent1_out][expected]
+        parent1_out = int_to_binstr(OUTPUT_LUT[(input_bit * STATES) | parent1], bits=2)
+        parent1_error = error(parent1_out, expected)
         parent1_score = scores[parent1][0] + parent1_error
 
         parent2 = (parent1 + 1) % STATES
-        parent2_out = OUTPUT_LUT[(input_bit * STATES) | parent2]
-        parent2_error = ERROR_LUT[parent2_out][expected]
+        parent2_out = int_to_binstr(OUTPUT_LUT[(input_bit * STATES) | parent2], bits=2)
+        parent2_error = error(parent2_out, expected)
         parent2_score = scores[parent2][0] + parent2_error
 
         if parent1_score < parent2_score:
@@ -38,38 +72,27 @@ def convolutional_decoder(rx):
         else:
             return parent2_score, scores[parent2][1] + str(input_bit)
 
-    scores = [(0, '')] + ([(1000, '')] * (STATES - 1))
+    rx = _puncture(rx, coding_rate, undo=True)
+    scores = [(0, '')] + ([(1000, '')] * (STATES - 1)) # (state score, decoded bits)
     for expect in wrap(rx, 2):
-        scores = [butterfly(i, int(expect, 2), scores) for i in range(len(scores))]
+        scores = [butterfly(i, expect, scores) for i in range(len(scores))]
 
-    min_score = np.argmin([x[0] for x in scores])
-    bits = scores[min_score][1]
+    min_score_index = int(np.argmin([x[0] for x in scores]))
+    bits = scores[min_score_index][1]
+    logger.info(f'Decoded {len(bits)} bits, score={scores[min_score_index][0]}, rate={coding_rate}')
     return bits
 
 
-def convolutional_encoder(data, coding_rate):
+def conv_encode(data, coding_rate='1/2'):
+    """ See Figure 17-8—Convolutional encoder """
     output = ''
     shr = '0' * (K - 1)
     for bit in data:
-
         i = bit + shr
         output += int_to_binstr(OUTPUT_LUT[int(i, 2)], bits=2)
         shr = i[:-1]  # advance the shift register
 
-    """
-    Puncturing is a procedure for omitting some of the encoded bits in the transmitter 
-    (thus reducing the number of transmitted bits and increasing the coding rate) 
-    and inserting a dummy “zero” metric into the convolutional decoder on the
-    receive side in place of the omitted bits. The puncturing patterns are illustrated in Figure 17-9.
-    """
-    if coding_rate == '2/3':
-        # throw out ech 3. bit in a block of 4
-        output = [bit for i, bit in enumerate(output) if (i % 4) != 3]
-    elif coding_rate == '3/4':
-        # throw out each 3. and 4. bit in a block of 6 bits
-        output = [bit for i, bit in enumerate(output) if (i % 6) != 3 and (i % 6) != 4]
-
-    return ''.join(output)
+    return _puncture(output, coding_rate)
 
 
 def test_signal():
@@ -82,17 +105,17 @@ def test_signal():
 
     # IEEE Std 802.11-2016: Table I-8—SIGNAL field bits after encoding
     expected = '110100011010000100000010001111100111000000000000'
-    output = convolutional_encoder(input, coding_rate='1/2')
+    output = conv_encode(input, coding_rate='1/2')
     assert output == expected
 
     # test decoding
-    decoded = convolutional_decoder(output)
+    decoded = conv_decode(output)
     assert decoded == input
 
     # test decoding with bit errors
     # 4 errors
     output = '010100011010100101000010001111100111000000100000'
-    decoded = convolutional_decoder(output)
+    decoded = conv_decode(output)
     assert decoded == input
 
 
@@ -126,5 +149,9 @@ def test_i161():
              '01011011001000111001100101011111001010000011111011010100111010011111011110111000000100110111010110' \
              '001110111100101010000000011011011011001110100100000111010111011011000010111111'
 
-    output = convolutional_encoder(input, coding_rate='3/4')
+    output = conv_encode(input, coding_rate='3/4')
     assert output == expect
+
+    # test decoding
+    decoded = conv_decode(expect, coding_rate='3/4')
+    assert decoded == input

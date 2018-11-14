@@ -1,11 +1,8 @@
-from ieee80211phy.receiver.frequency_correction import fix_frequency_offset_coarse
 from ieee80211phy.receiver.packet_detector import packet_detector
 from ieee80211phy.transmitter.ofdm_modulation import demap_from_carriers, get_derotated_pilots
 from ieee80211phy.transmitter.preamble import long_train_symbol
 import numpy as np
 import matplotlib.pyplot as plt
-
-from ieee80211phy.transmitter.subcarrier_modulation_mapping import mapper_decide
 from ieee80211phy.util import evm_db, default_reference_symbols
 
 
@@ -86,7 +83,7 @@ class Receiver:
 def test_limemini_wire_loopback():
     """
     This was recorded with single LimeSDR-Mini, Tx port was connected to Rx with a cable.
-    Gains were quite high. Looks like this setup has no frequency offset or timing offset.
+    Gains were quite high. Looks like this setup has no frequency offset or timing drift.
     """
     iq = np.load('/home/gaspar/git/ieee80211phy/data/limemini_wire_loopback.npy')
     r = Receiver(sample_advance=-3)
@@ -98,7 +95,7 @@ def test_limemini_wire_loopback():
 
 def test_limemini_air():
     """
-    Similiar to previous, but onver the air.
+    Similar to previous, but over the air.
     """
 
     iq = np.load('/home/gaspar/git/ieee80211phy/data/limemini_air.npy')

@@ -18,6 +18,7 @@ def xor_reduce_poly(data, poly):
     """ XOR reduces bits that are selected by the 'poly' """
     return int(bin(data & poly).count('1') & 1)
 
+
 def default_reference_symbols():
     """ QAM16 symbols sent by the examples in the IEE802.11 document """
     return np.load('/home/gaspar/git/ieee80211phy/data/default_reference_symbols.npy')
@@ -58,11 +59,12 @@ def moving_average(inputs, window_len):
     taps = [1 / window_len] * window_len
     return signal.lfilter(taps, [1.0], inputs)
 
+
 def moving_average_valid(inputs, window_len):
     """
     Skips the initial transient.
     """
-    inputs = np.concatenate([[inputs[0]] * (window_len//2), inputs, [inputs[-1]] * (window_len//2)])
+    inputs = np.concatenate([[inputs[0]] * (window_len // 2), inputs, [inputs[-1]] * (window_len // 2)])
     return moving_average(inputs, window_len)[window_len:]
 
 
@@ -98,7 +100,8 @@ def plot_rx(rx_symbols, reference_symbols=None):
     if reference_symbols is None:
         log.warning('Using decicion for reference symbols! EVM may be misleading!')
         from ieee80211phy.transmitter.subcarrier_modulation_mapping import mapper_decide
-        reference_symbols = np.array([[mapper_decide(j, 4) for j in x] for x in rx_symbols]) #TODO: remove this shit code
+        reference_symbols = np.array(
+            [[mapper_decide(j, 4) for j in x] for x in rx_symbols])  # TODO: remove this shit code
 
     figsize = (9.75, 10)
     fig, ax = plt.subplots(3, figsize=figsize, gridspec_kw={'height_ratios': [4, 2, 2]})
