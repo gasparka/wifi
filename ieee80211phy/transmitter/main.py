@@ -3,8 +3,8 @@ from textwrap import wrap
 import numpy as np
 from ieee80211phy.transmitter.preamble import short_training_sequence, long_training_sequence
 from ieee80211phy.transmitter.scrambler import scrambler
-from ieee80211phy.transmitter.signal_field import signal_field
-from ieee80211phy.transmitter.subcarrier_modulation_mapping import mapper
+from ieee80211phy.transmitter.signal_field import encode_signal_field
+from ieee80211phy.transmitter.subcarrier_modulation_mapping import bits_to_symbols
 
 log = logging.getLogger(__name__)
 
@@ -74,10 +74,10 @@ def build_package(data, data_rate):
     """
     n_bytes = len(wrap(data, 8))
     log.info(f'Packing {n_bytes} bytes')
-    header_bits = signal_field(data_rate, length_bytes=n_bytes)
+    header_bits = encode_signal_field(data_rate, length_bytes=n_bytes)
     header_conv = convolutional_encoder(header_bits, '1/2')
     header_interleav = interleave(header_conv, coded_bits_symbol=48, coded_bits_subcarrier=1)
-    header_mapped = mapper(header_interleav, bits_per_symbol=1)
+    header_mapped = bits_to_symbols(header_interleav, bits_per_symbol=1)
     header_symbols = map_to_carriers(header_mapped)
     header_symbols = insert_pilots(header_symbols, 0)
     header_time_domain = ifft_guard(header_symbols)
@@ -152,7 +152,7 @@ def build_package(data, data_rate):
     Refer to 17.3.5.8 for details.
     """
     groups = wrap(data, coded_bits_subcarrier)
-    data_complex = np.array([mapper(group, coded_bits_subcarrier) for group in groups])
+    data_complex = np.array([bits_to_symbols(group, coded_bits_subcarrier) for group in groups])
 
     """
     j) Divide the complex number string into groups of 48 complex numbers. Each such group is
@@ -456,7 +456,7 @@ def tx_generator(data, data_rate):
     data = data + pad
 
     groups = wrap(data, coded_bits_subcarrier)
-    data_complex = np.array([mapper(group, coded_bits_subcarrier) for group in groups]).flatten()
+    data_complex = np.array([bits_to_symbols(group, coded_bits_subcarrier) for group in groups]).flatten()
 
     ofdm_symbols_pure = np.reshape(data_complex, (-1, 48))
     ofdm_symbols = [map_to_carriers(symbol) for symbol in ofdm_symbols_pure]

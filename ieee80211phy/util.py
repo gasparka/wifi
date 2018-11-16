@@ -14,6 +14,10 @@ def int_to_binstr(x, bits):
     return bin(x)[2:].zfill(bits)
 
 
+def reverse(x: str):
+    return x[::-1]
+
+
 def xor_reduce_poly(data, poly):
     """ XOR reduces bits that are selected by the 'poly' """
     return int(bin(data & poly).count('1') & 1)

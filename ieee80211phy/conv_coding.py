@@ -85,7 +85,7 @@ def conv_decode(rx, coding_rate='1/2'):
             return parent2_score, scores[parent2][1] + str(input_bit)
 
     rx = _puncture(rx, coding_rate, undo=True)
-    scores = [(0, '')] + ([(1000, '')] * (STATES - 1)) # (state score, decoded bits)
+    scores = [(0, '')] + ([(1000, '')] * (STATES - 1))  # (state score, decoded bits)
     for expect in wrap(rx, 2):
         scores = [butterfly(i, expect, scores) for i in range(len(scores))]
 
@@ -93,7 +93,6 @@ def conv_decode(rx, coding_rate='1/2'):
     bits = scores[min_score_index][1]
     logger.info(f'Decoded {len(bits)} bits, score={scores[min_score_index][0]}, rate={coding_rate}')
     return bits
-
 
 
 def test_signal():
