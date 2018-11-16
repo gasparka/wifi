@@ -1,4 +1,4 @@
-from ieee80211phy.transmitter.ofdm_modulation import demap_from_carriers, get_derotated_pilots
+from ieee80211phy.transmitter.ofdm_modulation import extract_symbols, get_derotated_pilots
 from ieee80211phy.transmitter.preamble import long_train_symbol
 import numpy as np
 import matplotlib.pyplot as plt
@@ -102,7 +102,7 @@ def demod_data(rx, start_of_long_training, n_symbols, debug=False, fix_mean_pilo
         # # equalizer.equalizer_coefs *= coefs
         # slope_debug.append(slope)
 
-        output_symbols.append(demap_from_carriers(equalized_symbols))
+        output_symbols.append(extract_symbols(equalized_symbols))
 
     if debug:
         # pilots_debug = np.array(pilots_debug)

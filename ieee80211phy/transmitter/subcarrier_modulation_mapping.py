@@ -4,10 +4,13 @@ RATE requested. The encoded and interleaved binary serial input data shall be di
 (1, 2, 4, or 6) bits and converted into complex numbers representing BPSK, QPSK, 16-QAM, or 64-QAM
 constellation points. The conversion shall be performed according to Gray-coded constellation mappings.
 """
+from typing import List
+
+from ieee80211phy.util import awgn
+import numpy as np
+from textwrap import wrap
 
 # For BPSK, LUT[B0] determines the I value, Q is always 0
-from ieee80211phy.util import awgn
-
 BPSK_LUT = [-1, 1]
 
 # For QPSK, LUT[B0] determines the I value and LUT[B1] determines the Q value
@@ -24,7 +27,6 @@ The normalization factor depends on the base modulation mode. Note that the modu
 from the start to the end of the transmission, as the signal changes from SIGNAL to DATA. 
 The purpose of the normalization factor is to achieve the same average power for all mappings.
 """
-import numpy as np
 
 BPSK_LUT_NORM = np.array(BPSK_LUT)
 QPSK_LUT_NORM = np.array(QPSK_LUT) / np.sqrt(2)
@@ -32,16 +34,30 @@ QAM16_LUT_NORM = np.array(QAM16_LUT) / np.sqrt(10)
 QAM64_LUT_NORM = np.array(QAM64_LUT) / np.sqrt(42)
 
 
-def get_reference_power():
-    i = list(range(16))
-    symbols = [QAM16_LUT_NORM[i >> 2] + QAM16_LUT_NORM[i & 3] * 1j for i in range(16)]
+def modulate_bpsk(bit: str) -> complex:
+    return -1 + 0.0j if bit == '0' else 1 + 0.0j
+
+
+def demodulate_bpsk(symbol: complex) -> str:
+    return '0' if symbol.real < 0 else '1'
+
+
+def modulate_qam16(bits: str) -> np.ndarray:
+    def f(bit_group):
+        QAM16_LUT = [-3, -1, 3, 1]  # Table 17-14—16-QAM encoding table
+        i_index = int(bit_group[0:2], 2)
+        q_index = int(bit_group[2:4], 2)
+        symbol = QAM16_LUT[i_index] + QAM16_LUT[q_index] * 1j
+        return symbol / np.sqrt(10)
+
+    result = [f(bit_group) for bit_group in wrap(bits, 4)]
+    return np.array(result)
+
 
 
 def mapper(bits, bits_per_symbol):
-    from textwrap import wrap
-    bits = wrap(bits, bits_per_symbol)
     out = []
-    for chunk in bits:
+    for chunk in wrap(bits, bits_per_symbol):
         if bits_per_symbol == 1:  # BPSK
             i_index = int(chunk[0], 2)
             symbol = BPSK_LUT_NORM[i_index] + 0.0j
@@ -73,7 +89,7 @@ def mapper_decide(symbol, bits_per_symbol):
         return real + imag
     elif bits_per_symbol == 4:
         tick_gain = 1 / np.sqrt(10)
-        if symbol.real < -2*tick_gain:
+        if symbol.real < -2 * tick_gain:
             real = -3
         elif symbol.real < 0:
             real = -1
@@ -82,7 +98,7 @@ def mapper_decide(symbol, bits_per_symbol):
         else:
             real = 3
 
-        if symbol.imag < -2*tick_gain:
+        if symbol.imag < -2 * tick_gain:
             imag = -3
         elif symbol.imag < 0:
             imag = -1
@@ -91,25 +107,54 @@ def mapper_decide(symbol, bits_per_symbol):
         else:
             imag = 3
 
-        return (real + imag*1j) * tick_gain
+        return (real + imag * 1j) * tick_gain
+
+
+def mapper_decide_bits(symbol, bits_per_symbol):
+    if bits_per_symbol == 1:  # BPSK
+        return '1' if symbol.real >= 0 else '0'
+    elif bits_per_symbol == 2:  # QPSK
+        real = QPSK_LUT_NORM[1] if symbol.real >= 0 else QPSK_LUT_NORM[0]
+        imag = QPSK_LUT_NORM[1] if symbol.imag >= 0 else QPSK_LUT_NORM[0]
+        return real + imag
+    elif bits_per_symbol == 4:
+        tick_gain = 1 / np.sqrt(10)
+        if symbol.real < -2 * tick_gain:
+            real = -3
+        elif symbol.real < 0:
+            real = -1
+        elif symbol.real < 2 * tick_gain:
+            real = 1
+        else:
+            real = 3
+
+        if symbol.imag < -2 * tick_gain:
+            imag = -3
+        elif symbol.imag < 0:
+            imag = -1
+        elif symbol.imag < 2 * tick_gain:
+            imag = 1
+        else:
+            imag = 3
+
+        return (real + imag * 1j) * tick_gain
 
 
 def test_mapper_decider():
     input = np.hstack([(-0.316 + 0.316j), (-0.316 + 0.316j), (0.316 + 0.316j), (-0.949 - 0.949j), (0.316 + 0.949j),
-             (0.316 + 0.316j), (0.316 - 0.949j), (-0.316 - 0.949j), (-0.316 + 0.316j), (-0.949 + 0.316j),
-             (-0.949 - 0.949j), (-0.949 - 0.949j), (0.949 + 0.316j), (0.316 + 0.316j), (-0.949 - 0.316j),
-             (-0.949 - 0.316j), (-0.949 - 0.316j), (-0.949 - 0.949j), (0.949 - 0.316j), (0.949 + 0.949j),
-             (-0.949 - 0.316j), (0.316 - 0.316j), (-0.949 - 0.316j), (-0.949 + 0.949j), (-0.316 + 0.949j),
-             (0.316 + 0.949j), (-0.949 + 0.316j), (0.949 - 0.949j), (0.316 + 0.316j), (-0.316 - 0.316j),
-             (-0.316 + 0.949j), (0.949 - 0.316j), (-0.949 - 0.316j), (0.949 + 0.316j), (-0.316 + 0.949j),
-             (0.949 + 0.316j), (0.949 - 0.316j), (0.949 - 0.949j), (-0.316 - 0.949j), (-0.949 + 0.316j),
-             (-0.949 - 0.949j), (-0.949 - 0.949j), (-0.949 - 0.949j), (0.316 - 0.316j), (0.949 + 0.316j),
-             (-0.949 + 0.316j), (-0.316 + 0.949j), (0.316 - 0.316j)] * 128)
+                       (0.316 + 0.316j), (0.316 - 0.949j), (-0.316 - 0.949j), (-0.316 + 0.316j), (-0.949 + 0.316j),
+                       (-0.949 - 0.949j), (-0.949 - 0.949j), (0.949 + 0.316j), (0.316 + 0.316j), (-0.949 - 0.316j),
+                       (-0.949 - 0.316j), (-0.949 - 0.316j), (-0.949 - 0.949j), (0.949 - 0.316j), (0.949 + 0.949j),
+                       (-0.949 - 0.316j), (0.316 - 0.316j), (-0.949 - 0.316j), (-0.949 + 0.949j), (-0.316 + 0.949j),
+                       (0.316 + 0.949j), (-0.949 + 0.316j), (0.949 - 0.949j), (0.316 + 0.316j), (-0.316 - 0.316j),
+                       (-0.316 + 0.949j), (0.949 - 0.316j), (-0.949 - 0.316j), (0.949 + 0.316j), (-0.316 + 0.949j),
+                       (0.949 + 0.316j), (0.949 - 0.316j), (0.949 - 0.949j), (-0.316 - 0.949j), (-0.949 + 0.316j),
+                       (-0.949 - 0.949j), (-0.949 - 0.949j), (-0.949 - 0.949j), (0.316 - 0.316j), (0.949 + 0.316j),
+                       (-0.949 + 0.316j), (-0.316 + 0.949j), (0.316 - 0.316j)] * 128)
 
     noisy = awgn(input, 25)
     decided = [mapper_decide(x, 4) for x in noisy]
     np.testing.assert_allclose(np.round(decided, 3), input)
-
 
 
 def test_i163():

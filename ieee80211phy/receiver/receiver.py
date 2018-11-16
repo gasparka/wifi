@@ -1,5 +1,5 @@
 from ieee80211phy.receiver.packet_detector import packet_detector
-from ieee80211phy.transmitter.ofdm_modulation import demap_from_carriers, get_derotated_pilots
+from ieee80211phy.transmitter.ofdm_modulation import extract_symbols, get_derotated_pilots
 from ieee80211phy.transmitter.preamble import long_train_symbol
 import numpy as np
 import matplotlib.pyplot as plt
@@ -31,7 +31,15 @@ class Receiver:
 
         # parse the payload
         data_rx = iq[start_of_long_training + 160:start_of_long_training + 160 + (n_symbols * 80)]
-        signal_field = data_rx[:80]    # TODO: should skip signal field here?
+
+        # parse the signal field
+        signal_field = data_rx[:80]
+        start = 16 + self.sample_advance
+        symbols = np.fft.fft(signal_field[start:start + 64])
+        equalized_symbols = symbols * self.equalizer_taps
+
+
+
         data = np.reshape(data_rx[80:], (-1, 80))
         output_symbols = []
 
@@ -53,7 +61,7 @@ class Receiver:
             self.equalizer_taps *= np.exp(-1j * mean_phase_offset)
 
             # output
-            output_symbols.append(demap_from_carriers(equalized_symbols))
+            output_symbols.append(extract_symbols(equalized_symbols))
 
         return output_symbols
 

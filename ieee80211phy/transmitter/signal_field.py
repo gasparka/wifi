@@ -52,7 +52,7 @@ def signal_field(data_rate, length_bytes, channel='20M'):
     """ Bit 4 is reserved. It shall be set to 0 on transmit and ignored on receive. """
     signal += '0'
 
-    """ The PHY LENGTH field shall be an unsigned 12-bit integer that indicates the number of octets in the PSDU
+    """ The PHY LENGTH field shall be an unsigned 12-bit integer that indicates the number of octets (bytes) in the PSDU
     that the MAC is currently requesting the PHY to transmit."""
     if length_bytes > (2**12)-1:
         raise Exception(f'Maximum bytes in a packet is {(2**12)-1}, you require {length_bytes}')

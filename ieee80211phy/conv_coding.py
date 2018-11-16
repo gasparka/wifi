@@ -39,6 +39,18 @@ def _puncture(data, rate, undo=False):
     return ''.join(data)
 
 
+def conv_encode(data, coding_rate='1/2'):
+    """ See Figure 17-8—Convolutional encoder """
+    output = ''
+    shr = '0' * (K - 1)
+    for bit in data:
+        i = bit + shr
+        output += int_to_binstr(OUTPUT_LUT[int(i, 2)], bits=2)
+        shr = i[:-1]  # advance the shift register
+
+    return _puncture(output, coding_rate)
+
+
 def conv_decode(rx, coding_rate='1/2'):
     """ See 'Bits, Signals, and Packets: An Introduction to Digital Communications and Networks' ->
         'Viterbi Decoding of Convolutional Codes (PDF - 1.4MB)'
@@ -82,17 +94,6 @@ def conv_decode(rx, coding_rate='1/2'):
     logger.info(f'Decoded {len(bits)} bits, score={scores[min_score_index][0]}, rate={coding_rate}')
     return bits
 
-
-def conv_encode(data, coding_rate='1/2'):
-    """ See Figure 17-8—Convolutional encoder """
-    output = ''
-    shr = '0' * (K - 1)
-    for bit in data:
-        i = bit + shr
-        output += int_to_binstr(OUTPUT_LUT[int(i, 2)], bits=2)
-        shr = i[:-1]  # advance the shift register
-
-    return _puncture(output, coding_rate)
 
 
 def test_signal():

@@ -1,18 +1,13 @@
 import logging
 from textwrap import wrap
-
 import numpy as np
-
-from ieee80211phy.transmitter.interleaver import interleaver
-from ieee80211phy.transmitter.ofdm_modulation import map_to_carriers, insert_pilots, ifft_guard
 from ieee80211phy.transmitter.preamble import short_training_sequence, long_training_sequence
 from ieee80211phy.transmitter.scrambler import scrambler
 from ieee80211phy.transmitter.signal_field import signal_field
 from ieee80211phy.transmitter.subcarrier_modulation_mapping import mapper
 
+log = logging.getLogger(__name__)
 
-logging.basicConfig(level=logging.DEBUG)
-log = logging.getLogger('tx')
 
 def get_params_from_rate(data_rate):
     """
@@ -58,15 +53,6 @@ def get_params_from_rate(data_rate):
         return '64-QAM', '3/4', 6, 288, 216
 
 
-def bytes_count(data):
-    if data[0:2] in ('0x', '0X'):
-        data = data[2:]
-
-    length = len(data)
-    assert not length & 1  # is divisible by 2
-    return length // 2
-
-
 def build_package(data, data_rate):
     """
     a) Produce the PHY Preamble field, composed of 10 repetitions of a “short training sequence” (used
@@ -90,7 +76,7 @@ def build_package(data, data_rate):
     log.info(f'Packing {n_bytes} bytes')
     header_bits = signal_field(data_rate, length_bytes=n_bytes)
     header_conv = convolutional_encoder(header_bits, '1/2')
-    header_interleav = interleaver(header_conv, coded_bits_symbol=48, coded_bits_subcarrier=1)
+    header_interleav = interleave(header_conv, coded_bits_symbol=48, coded_bits_subcarrier=1)
     header_mapped = mapper(header_interleav, bits_per_symbol=1)
     header_symbols = map_to_carriers(header_mapped)
     header_symbols = insert_pilots(header_symbols, 0)
@@ -157,7 +143,7 @@ def build_package(data, data_rate):
     parameter RATE. Refer to 17.3.5.7 for details.
     """
     groups = wrap(data, coded_bits_symbol)
-    interleaved_groups = [interleaver(group, coded_bits_symbol, coded_bits_subcarrier) for group in groups]
+    interleaved_groups = [interleave(group, coded_bits_symbol, coded_bits_subcarrier) for group in groups]
     data = ''.join(interleaved_groups)
 
     """

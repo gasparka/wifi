@@ -27,7 +27,7 @@ def second_permutation_table(coded_bits_symbol, coded_bits_subcarrier):
     return lut
 
 
-def interleaver(data, coded_bits_symbol, coded_bits_subcarrier, undo=False):
+def interleave(data, coded_bits_symbol, coded_bits_subcarrier, undo=False):
     """
     Divide the encoded bit string into groups of NCBPS bits. Within each group, perform an
     “interleaving” (reordering) of the bits according to a rule corresponding to the TXVECTOR
@@ -93,11 +93,11 @@ def test_i143():
 
     # IEEE Std 802.11-2016: Table I-9—SIGNAL field bits after interleaving
     expect = '100101001101000000010100100000110010010010010100'
-    result = interleaver(input, 48, 1)
+    result = interleave(input, 48, 1)
     assert result == expect
 
     # test reverse
-    result = interleaver(expect, 48, 1, undo=True)
+    result = interleave(expect, 48, 1, undo=True)
     assert result == input
 
 
@@ -112,9 +112,9 @@ def test_i162():
              '1000100100110111000111000111101010110100100011011011010111001100001000011000000000000110' \
              '11011001101101101'
 
-    result = interleaver(input, 192, 4)
+    result = interleave(input, 192, 4)
     assert result == expect
 
     # test reverse
-    result = interleaver(expect, 192, 4, undo=True)
+    result = interleave(expect, 192, 4, undo=True)
     assert result == input
