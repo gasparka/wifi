@@ -1,10 +1,14 @@
 import logging
 from textwrap import wrap
 import numpy as np
-from ieee80211phy.transmitter.preamble import short_training_sequence, long_training_sequence
-from ieee80211phy.transmitter.scrambler import scrambler
-from ieee80211phy.transmitter.signal_field import encode_signal_field
-from ieee80211phy.transmitter.subcarrier_modulation_mapping import bits_to_symbols
+
+from ieee80211phy.conv_coding import conv_encode
+from ieee80211phy.interleaving import interleave
+from ieee80211phy.modulation import bits_to_symbols
+from ieee80211phy.ofdm import modulate_ofdm
+from ieee80211phy.preamble import short_training_sequence, long_training_sequence
+from ieee80211phy.scrambler import scrambler
+from ieee80211phy.signal_field import encode_signal_field
 
 log = logging.getLogger(__name__)
 
@@ -53,7 +57,7 @@ def get_params_from_rate(data_rate):
         return '64-QAM', '3/4', 6, 288, 216
 
 
-def build_package(data, data_rate):
+def transmitter(data, data_rate):
     """
     a) Produce the PHY Preamble field, composed of 10 repetitions of a “short training sequence” (used
     for AGC convergence, diversity selection, timing acquisition, and coarse frequency acquisition in
@@ -73,14 +77,11 @@ def build_package(data, data_rate):
     contents of the SIGNAL field are not scrambled. Refer to 17.3.4 for details.
     """
     n_bytes = len(wrap(data, 8))
-    log.info(f'Packing {n_bytes} bytes')
-    header_bits = encode_signal_field(data_rate, length_bytes=n_bytes)
-    header_conv = convolutional_encoder(header_bits, '1/2')
-    header_interleav = interleave(header_conv, coded_bits_symbol=48, coded_bits_subcarrier=1)
-    header_mapped = bits_to_symbols(header_interleav, bits_per_symbol=1)
-    header_symbols = map_to_carriers(header_mapped)
-    header_symbols = insert_pilots(header_symbols, 0)
-    header_time_domain = ifft_guard(header_symbols)
+    signal = encode_signal_field(data_rate, length_bytes=n_bytes)
+    signal = conv_encode(signal, '1/2')
+    signal = interleave(signal, coded_bits_symbol=48, coded_bits_subcarrier=1)
+    signal = bits_to_symbols(signal, bits_per_symbol=1)
+    signal = modulate_ofdm(signal, index_in_package=0)
 
     """
     c) Calculate from RATE field of the TXVECTOR the number of data bits per OFDM symbol (N DBPS ),
@@ -114,7 +115,8 @@ def build_package(data, data_rate):
     pad = '0' * n_pad
 
     data = data + pad
-    log.info(f'{n_symbols} symbols. {n_pad} padding bits added')
+    log.info(f'Package {n_bytes} bytes, {n_symbols} OFDM symbols ({n_pad} padding bits added)\n'
+             f'\t data_rate={data_rate}, modulation={modulation}, coding_rate={coding_rate}')
 
     """
     e) If the TXVECTOR parameter CH_BANDWIDTH_IN_NON_HT is not present, initiate the
@@ -135,24 +137,23 @@ def build_package(data, data_rate):
     some of the encoder output string (chosen according to “puncturing pattern”) to reach the “coding
     rate” corresponding to the TXVECTOR parameter RATE. Refer to 17.3.5.6 for details.
     """
-    data = convolutional_encoder(data, coding_rate)
+    data = conv_encode(data, coding_rate)
 
     """
     h) Divide the encoded bit string into groups of 'coded_bits_symbol' bits. Within each group, perform an
     “interleaving” (reordering) of the bits according to a rule corresponding to the TXVECTOR
     parameter RATE. Refer to 17.3.5.7 for details.
     """
-    groups = wrap(data, coded_bits_symbol)
-    interleaved_groups = [interleave(group, coded_bits_symbol, coded_bits_subcarrier) for group in groups]
-    data = ''.join(interleaved_groups)
+    interleaved = [interleave(bit_group, coded_bits_symbol, coded_bits_subcarrier)
+                          for bit_group in wrap(data, coded_bits_symbol)]
+    data = ''.join(interleaved)
 
     """
-    i) Divide the resulting coded and interleaved data string into groups of 'coded_bits_subcarrier' bits. For each of the bit
-    groups, convert the bit group into a complex number according to the modulation encoding tables.
+    i) Divide the resulting coded and interleaved data string into groups of 'coded_bits_subcarrier' bits. 
+    For each of the bit groups, convert the bit group into a complex number according to the modulation encoding tables.
     Refer to 17.3.5.8 for details.
     """
-    groups = wrap(data, coded_bits_subcarrier)
-    data_complex = np.array([bits_to_symbols(group, coded_bits_subcarrier) for group in groups])
+    data = bits_to_symbols(data, coded_bits_subcarrier)
 
     """
     j) Divide the complex number string into groups of 48 complex numbers. Each such group is
@@ -161,73 +162,46 @@ def build_package(data, data_rate):
     and 22 to 26. The subcarriers –21, –7, 7, and 21 are skipped and, subsequently, used for inserting
     pilot subcarriers. The 0 subcarrier, associated with center frequency, is omitted and filled with the
     value 0. Refer to 17.3.5.10 for details.
-    """
-    ofdm_symbols = np.reshape(data_complex, (-1, 48))
-    ofdm_symbols = [map_to_carriers(symbol) for symbol in ofdm_symbols]
 
-    """
     k) Four subcarriers are inserted as pilots into positions –21, –7, 7, and 21.
     Refer to 17.3.5.9 for details.
-    """
-    ofdm_symbols = [insert_pilots(symbol, symbol_i + 1) for symbol_i, symbol in enumerate(ofdm_symbols)]
 
-    """
     l) For each group of subcarriers –26 to 26, convert the subcarriers to time domain using inverse
     Fourier transform. Prepend to the Fourier-transformed waveform a circular extension of itself thus
     forming a GI, and truncate the resulting periodic waveform to a single OFDM symbol length by
     applying time domain windowing. Refer to 17.3.5.10 for details.
     """
-    data_time_domain = [ifft_guard(symbol) for symbol in ofdm_symbols]
+    data = [modulate_ofdm(ofdm_symbol, index_in_package=i + 1)
+            for i, ofdm_symbol in enumerate(data.reshape((-1, 48)))]
 
     """
     m) Append the OFDM symbols one after another, starting after the SIGNAL symbol describing the
     RATE and LENGTH fields. Refer to 17.3.5.10 for details.
+    
+    Note: also doing time domain windowing, as discussed in "17.3.2.6 Discrete time implementation considerations"
     """
 
-    # data_time_domain = np.concatenate(data_time_domain)
-    # result = np.concatenate([train_short, train_long, header_time_domain, data_time_domain])
-    # return result
-
-    # time windowing method as discussed in "17.3.2.6 Discrete time implementation considerations"
     train_short[0] = train_short[0] / 2
     # merge short and long training sequence
     train_long[0] = (train_short[-64] + train_long[0]) / 2
 
     # merge long training sequence with header
-    header_time_domain[0] = (train_long[-64] + header_time_domain[0]) / 2
+    signal[0] = (train_long[-64] + signal[0]) / 2
 
     # merge header with data
-    data_time_domain[0][0] = (header_time_domain[-64] + data_time_domain[0][0]) / 2
+    data[0][0] = (signal[-64] + data[0][0]) / 2
 
     # merge each data symbol
-    for i in range(1, len(data_time_domain)):
-        data_time_domain[i][0] = (data_time_domain[i - 1][-64] + data_time_domain[i][0]) / 2
-    data_time_domain = np.concatenate(data_time_domain)
+    for i in range(1, len(data)):
+        data[i][0] = (data[i - 1][-64] + data[i][0]) / 2
+    data = np.concatenate(data)
 
-    result = np.concatenate(
-        [train_short, train_long, header_time_domain, data_time_domain, [data_time_domain[-64] / 2]])
+    result = np.concatenate([train_short, train_long, signal, data, [data[-64] / 2]])
     return result
 
 
-def hex_to_bitstr(hstr):
-    """ http://stackoverflow.com/questions/1425493/convert-hex-to-binary """
-    assert isinstance(hstr, str)
-    if hstr[0:2] in ('0x', '0X'):
-        hstr = hstr[2:]
-    my_hexdata = hstr
-    scale = 16  ## equals to hexadecimal
-    num_of_bits = int(len(my_hexdata) * np.log2(scale))
-    return bin(int(my_hexdata, scale))[2:].zfill(num_of_bits)
-
-
-def flip_byte_endian(bitstr):
-    from textwrap import wrap
-    bytes = wrap(bitstr, 8)
-    flipped = [x[::-1] for x in bytes]
-    return ''.join(flipped)
-
-
 def test_annexi():
+    from ieee80211phy.util import flip_byte_endian, hex_to_bitstr
     # Table I-1—The message for the BCC example
     input = '0x0402002E006008CD37A60020D6013CF1006008AD3BAF00004A6F792C2062726967687420737061726B206F6620646976696E6974792C0A4461756768746572206F6620456C797369756D2C0A466972652D696E73697265642077652074726561673321B6'
     input = flip_byte_endian(hex_to_bitstr(input))
@@ -432,54 +406,5 @@ def test_annexi():
         [expect_short_train, expect_long_train, expect_signal_field, expected_data1, expected_data2, expected_data3,
          expected_data4, expected_data5, expected_data6])
 
-    output = np.round(build_package(input, data_rate=36), 3)
+    output = np.round(transmitter(input, data_rate=36), 3)
     np.testing.assert_equal(output, expected)
-
-
-def tx_generator(data, data_rate):
-    train_short = short_training_sequence()
-    train_long = long_training_sequence()
-
-    modulation, coding_rate, coded_bits_subcarrier, coded_bits_symbol, data_bits_symbol = get_params_from_rate(
-        data_rate)
-
-    service = '0' * 16
-    tail = '0' * 6
-    data = service + data + tail
-
-    n_symbols = int(np.ceil(len(data) / coded_bits_symbol)) # TODO: changed to coded bits, becaue i have no coding!
-    n_data = n_symbols * coded_bits_symbol # TODO: changed to coded bits, becaue i have no coding!
-    n_pad = int(n_data - len(data))
-    pad = '0' * n_pad
-    print(f'Symbols: {n_symbols} Padding: {n_pad}')
-
-    data = data + pad
-
-    groups = wrap(data, coded_bits_subcarrier)
-    data_complex = np.array([bits_to_symbols(group, coded_bits_subcarrier) for group in groups]).flatten()
-
-    ofdm_symbols_pure = np.reshape(data_complex, (-1, 48))
-    ofdm_symbols = [map_to_carriers(symbol) for symbol in ofdm_symbols_pure]
-
-    ofdm_symbols = [insert_pilots(symbol, symbol_i + 1) for symbol_i, symbol in enumerate(ofdm_symbols)]
-
-    data_time_domain = [ifft_guard(symbol) for symbol in ofdm_symbols]
-
-    # time windowing method as discussed in "17.3.2.6 Discrete time implementation considerations"
-    train_short[0] = train_short[0] / 2
-    train_long[0] = (train_short[-64] + train_long[0]) / 2
-    data_time_domain[0][0] = (train_long[-64] + data_time_domain[0][0]) / 2
-
-    for i in range(1, len(data_time_domain)):
-        data_time_domain[i][0] = (data_time_domain[i - 1][-64] + data_time_domain[i][0]) / 2
-    data_time_domain = np.concatenate(data_time_domain)
-
-    result = np.concatenate(
-        [train_short, train_long, data_time_domain, [data_time_domain[-64] / 2]])
-    return result, data_complex, ofdm_symbols_pure
-
-
-def test_lol():
-    data = ''.join('1' if x else '0' for x in np.random.randint(2, size=2138))
-    print(data)
-    tx = tx_generator(data, data_rate=36)

@@ -193,12 +193,12 @@ def demodulate_ofdm(samples: np.ndarray, index_in_package: int) -> Tuple[np.ndar
 
 
 def test_ofdm_i18():
-    from ieee80211phy.transmitter.subcarrier_modulation_mapping import modulate_qam16
     # IEEE Std 802.11-2016 - Table I-19—Interleaved bits of first DATA symbol
     input = '0111011111110000111011111100010001110011000000001011111100010001000100001001101000011101000100100110111' \
             '00011100011110101011010010001101101101011100110000100001100000000000011011011001101101101 '
-    input_ofdm_symbol = modulate_qam16(input)
-    output = modulate_ofdm(input_ofdm_symbol, index_in_package=0)
+    from ieee80211phy.modulation import bits_to_symbols
+    input_ofdm_symbol = bits_to_symbols(input, bits_per_symbol=4)
+    output = modulate_ofdm(input_ofdm_symbol, index_in_package=1)
 
     # Table I-25—Time domain representation of the DATA field: symbol 1of 6
     expected = [(-0.139 + 0.05j), (0.004 + 0.014j), (0.011 - 0.1j), (-0.097 - 0.02j), (0.062 + 0.081j),
@@ -222,5 +222,5 @@ def test_ofdm_i18():
     np.testing.assert_equal(expected[1:-1], np.round(output[1:-1], 3))
 
     # test demodulation
-    ofdm_symbol, pilots = demodulate_ofdm(output, index_in_package=0)
+    ofdm_symbol, pilots = demodulate_ofdm(output, index_in_package=1)
     np.testing.assert_allclose(ofdm_symbol, input_ofdm_symbol)

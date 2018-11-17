@@ -1,13 +1,16 @@
 import logging
-from ieee80211phy.transmitter.main import tx_generator
 import numpy as np
 
+from ieee80211phy.preamble import long_training_symbol
 from ieee80211phy.util import moving_average
 
 logger = logging.getLogger(__name__)
 
 
 def packet_detector(input):
+    """
+    Returns index to start of first long training symbol
+    """
     autocorr = (input[:-16] * np.conjugate(input[16:])).real
     autocorr = moving_average(autocorr, 8)
 
@@ -25,23 +28,32 @@ def packet_detector(input):
             state = 1
         elif ratio[i] < 0.77:
             if state == 1:
-                timings.append(i)
+                timings.append(i + 32)
             state = 0
 
     logger.info(f'Found packets at: {timings}')
     return timings
 
 
-def test_():
-    np.random.seed(0)
-    data = ''.join('1' if x else '0' for x in np.random.randint(2, size=20906))
-    tx, maps, ofdm_syms = tx_generator(data, data_rate=36)
+def receiver(iq, i):
+    # average of two training symbols
+    avg_train = (iq[i:i + 64] + iq[i + 64:i + 128]) / 2
+    channel_estimate = np.fft.fft(avg_train) / long_training_symbol()
+    equalizer = 1 / channel_estimate
 
-    index = packet_detector(tx)
-    assert index == [161]
+    # decode the signal field
+
+    # parse the payload
+    data_rx = iq[start_of_long_training + 160:start_of_long_training + 160 + (n_symbols * 80)]
+
+    # parse the signal field
+    signal_field = data_rx[:80]
+    start = 16 + self.sample_advance
+    symbols = np.fft.fft(signal_field[start:start + 64])
+    equalized_symbols = symbols * self.equalizer_taps
 
 
-def test_multi():
+def test_packet_detector():
     iq = np.load('/home/gaspar/git/ieee80211phy/data/limemini_wire_loopback.npy')
     iq = np.hstack([iq, iq, iq, iq])
     indexes = packet_detector(iq)

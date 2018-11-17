@@ -60,6 +60,9 @@ def encode_signal_field(data_rate: int, length_bytes: int) -> str:
 
 
 def decode_signal_field(bits: str) -> Tuple[int, int]:
+    parity = str(bits[:17].count('1') & 1)
+    assert parity == bits[17]
+
     data_rate = [key for key, value in RATE_LUT.items() if value == bits[:4]][0]
     length_bytes = int(reverse(bits[5:18]), 2)
     return data_rate, length_bytes

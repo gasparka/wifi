@@ -9,9 +9,25 @@ logging.basicConfig(level=logging.DEBUG)
 log = logging.getLogger('util')
 
 
+def hex_to_bitstr(hstr):
+    """ http://stackoverflow.com/questions/1425493/convert-hex-to-binary """
+    assert isinstance(hstr, str)
+    if hstr[0:2] in ('0x', '0X'):
+        hstr = hstr[2:]
+    my_hexdata = hstr
+    num_of_bits = int(len(my_hexdata) * np.log2(16))
+    return int_to_binstr(int(my_hexdata, 16), num_of_bits)
+
+
+def flip_byte_endian(bitstr):
+    from textwrap import wrap
+    bytes = wrap(bitstr, 8)
+    flipped = [x[::-1] for x in bytes]
+    return ''.join(flipped)
+
+
 def int_to_binstr(x, bits):
-    # [2:] skips the '0b' string
-    return bin(x)[2:].zfill(bits)
+    return bin(x)[2:].zfill(bits)  # [2:] skips the '0b' string
 
 
 def reverse(x: str):
@@ -149,3 +165,26 @@ def plot_rx(rx_symbols, reference_symbols=None):
 
     plt.tight_layout(rect=[0, 0, 1, 0.95])
     plt.show()
+
+
+def plot_channel_estimate(equalizer):
+    """
+    Rising trend in the phase response is due to the 'sample_advance' parameter.
+    """
+
+    fig, ax = plt.subplots(2, figsize=(9.75, 6), sharex='all')
+    plt.title('Equalizers effect to each carrier')
+    taps = np.fft.fftshift(equalizer)
+    mag = 20 * np.log10(taps)
+    deg = np.degrees(np.angle(taps))
+    ax[0].set_title('Magnitude response')
+    ax[0].plot(np.arange(-32, 32), mag)
+    ax[0].set_ylim([np.nanmin(mag)-12, np.nanmax(mag)+6])
+    ax[0].set_ylabel('Magnitude dB')
+    ax[0].grid(True)
+    ax[1].set_title('Phase response (unwrapped)')
+    ax[1].plot(np.arange(-32, 32), deg)
+    ax[1].set_ylabel('Angle [deg]')
+    ax[1].set_xlabel('Carrier index')
+    ax[1].grid(True)
+    plt.tight_layout()
