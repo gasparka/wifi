@@ -51,6 +51,12 @@ def symbols_to_bits(symbols: np.ndarray, bits_per_symbol: int) -> str:
     return bits
 
 
+def symbols_error(symbols: np.ndarray, bits_per_symbol: int) -> np.ndarray:
+    errors = [abs(LUT[bits_per_symbol] - symbol) for symbol in symbols]
+    ret = [np.min(err) for err in errors]
+    return np.array(ret)
+
+
 def test_i163():
     """ IEEE Std 802.11-2016 - Table I-19—Interleaved bits of first DATA symbol """
 

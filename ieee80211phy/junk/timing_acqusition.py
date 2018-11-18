@@ -1,6 +1,4 @@
 import scipy
-from ieee80211phy.transmitter.preamble import long_train_symbol
-from ieee80211phy.util import moving_average, mixer
 import numpy as np
 import matplotlib.pyplot as plt
 

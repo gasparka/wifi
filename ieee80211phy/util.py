@@ -66,7 +66,7 @@ def awgn(iq, snr):
     return noise + iq
 
 
-def timing_offseset(tx, delay):
+def timing_offset(tx, delay):
     in_index = np.arange(0, len(tx), 1)
     out_index = np.arange(0, len(tx), 1 + delay)
     print(f'Max err: {delay*len(tx)}')
@@ -107,28 +107,34 @@ def evm_db(rx, reference):
     return evm_db
 
 
+def evm_db2(rx, bits_per_symbol):
+    from ieee80211phy.modulation import symbols_error
+    error = symbols_error(rx, bits_per_symbol)
+    error_power = np.mean([power(e) for e in error])
+
+    # reference power is known to be 1.0 for all constellations for IEE802.11
+    evm_db = 10 * np.log10(error_power)
+    # evm_rms = np.sqrt(error_power) * 100
+    return evm_db
+
+
 def evm_vs_carrier(rx, ref):
-    return [evm_db(crx, cref) for crx, cref in zip(rx.T, ref.T)]
+    return [evm_db2(crx, 4) for crx in rx.T]
 
 
 def evm_vs_time(rx, ref):
     return [evm_db(crx, cref) for crx, cref in zip(rx, ref)]
 
 
-def plot_rx(rx_symbols, reference_symbols=None):
+def plot_rx(rx_symbols):
     rx_symbols = np.array(rx_symbols)
-    if reference_symbols is None:
-        log.warning('Using decicion for reference symbols! EVM may be misleading!')
-        from ieee80211phy.transmitter.subcarrier_modulation_mapping import mapper_decide
-        reference_symbols = np.array(
-            [[mapper_decide(j, 4) for j in x] for x in rx_symbols])  # TODO: remove this shit code
-
     figsize = (9.75, 10)
     fig, ax = plt.subplots(3, figsize=figsize, gridspec_kw={'height_ratios': [4, 2, 2]})
 
     # constellation
-    ax[0].set(title=f'Constellation EVM={evm_db(rx_symbols, reference_symbols):.2f} dB')
-    ax[0].scatter(rx_symbols.real, rx_symbols.imag)
+    rx_constellation = rx_symbols.flatten()
+    ax[0].set(title=f'Constellation EVM={evm_db2(rx_constellation, 4):.2f} dB')
+    ax[0].scatter(rx_constellation.real, rx_constellation.imag)
     ax[0].grid(True)
     tick_base = 1 / np.sqrt(10)
     ax[0].set_xticks([-4 * tick_base, -2 * tick_base, 0, tick_base * 2, tick_base * 4])
@@ -136,8 +142,8 @@ def plot_rx(rx_symbols, reference_symbols=None):
     ax[0].set_xlabel('Real')
     ax[0].set_ylabel('Imag')
 
-    # evm vs carrier
-    evm_carrier = evm_vs_carrier(rx_symbols, reference_symbols)
+    # # evm vs carrier
+    evm_carrier = [evm_db2(crx, 4) for crx in rx_symbols.T]
     ids = [-26, -25, -24, -23, -22,
            -20, -19, -18, -17, -16, -15, -14, -13, -12, -11, -10, -9, -8,
            -6, -5, -4, -3, -2, -1,
@@ -147,7 +153,7 @@ def plot_rx(rx_symbols, reference_symbols=None):
 
     ax[1].set(title=f'EVM vs carriers')
     ax[1].scatter(ids, evm_carrier)
-    ax[1].plot(ids, moving_average_valid(evm_carrier, 4), alpha=0.5)
+    ax[1].plot(ids, moving_average_valid(evm_carrier, 4), alpha=0.25)
     ax[1].set_xticks(ids)
     ax[1].set_xticklabels(ids, rotation=45)
     ax[1].grid(True)
@@ -155,10 +161,10 @@ def plot_rx(rx_symbols, reference_symbols=None):
     ax[1].set_ylabel('EVM')
 
     # evm vs time
-    evm_time = evm_vs_time(rx_symbols, reference_symbols)
+    evm_time = [evm_db2(crx, 4) for crx in rx_symbols]
     ax[2].set(title=f'EVM vs time')
     ax[2].plot(evm_time)
-    ax[2].plot(moving_average_valid(evm_time, 32), alpha=0.5)
+    ax[2].plot(moving_average_valid(evm_time, 32), alpha=0.25)
     ax[2].grid(True)
     ax[2].set_xlabel('OFDM packet')
     ax[2].set_ylabel('EVM')
@@ -173,18 +179,50 @@ def plot_channel_estimate(equalizer):
     """
 
     fig, ax = plt.subplots(2, figsize=(9.75, 6), sharex='all')
-    plt.title('Equalizers effect to each carrier')
     taps = np.fft.fftshift(equalizer)
     mag = 20 * np.log10(taps)
     deg = np.degrees(np.angle(taps))
-    ax[0].set_title('Magnitude response')
+    ax[0].set_title('Equalizer magnitude response')
     ax[0].plot(np.arange(-32, 32), mag)
-    ax[0].set_ylim([np.nanmin(mag)-12, np.nanmax(mag)+6])
+    ax[0].set_ylim([np.nanmin(mag) - 12, np.nanmax(mag) + 6])
     ax[0].set_ylabel('Magnitude dB')
     ax[0].grid(True)
-    ax[1].set_title('Phase response (unwrapped)')
+    ax[1].set_title('Equalizer phase response')
     ax[1].plot(np.arange(-32, 32), deg)
     ax[1].set_ylabel('Angle [deg]')
     ax[1].set_xlabel('Carrier index')
     ax[1].grid(True)
     plt.tight_layout()
+
+
+def plot_packet_time_domain(iq, i):
+    plt.figure(figsize=(9.75, 5))
+    plt.title('Packet in time domain')
+    plt.plot(np.arange(0, 160), iq[i - 160 - 32: i - 32], label='short training')
+    plt.plot(np.arange(160, 320), iq[i - 32: i + 128], label='long training')
+    plt.plot(np.arange(320, 400), iq[i + 128: i + 128 + 80], label='signal field')
+    plt.plot(np.arange(400, 480), iq[i + 128 + 80: i + 128 + 80 + 80], label='first data')
+    plt.scatter([i], [iq[i]], label='timing recovery index')
+
+    plt.grid()
+    plt.legend()
+    plt.tight_layout()
+
+
+def plot_signal_field_constellation(symbols):
+    plt.figure(figsize=(9.75, 5))
+
+    evm = evm_db2(symbols, bits_per_symbol=1)
+    plt.title(f'Signal field constallation. EVM={evm:.2f} dB')
+    plt.scatter(symbols.real, symbols.imag)
+    plt.scatter([-1, 1], [0, 0], marker='x')
+    plt.ylim([-1, 1])
+    plt.xlim([-2, 2])
+
+    a = plt.gca().get_xgridlines()
+    b = a[4]
+    b.set_color('red')
+    b.set_linewidth(1)
+
+    plt.tight_layout()
+    plt.grid()

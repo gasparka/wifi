@@ -44,7 +44,7 @@ def modulate_ofdm(ofdm_symbol: np.ndarray, index_in_package: int) -> np.ndarray:
     Returns:
         80 time domain samples (16 GI + 64 IFFT)
     """
-
+    assert len(ofdm_symbol) == 48
     pilots = np.array([1, 1, 1, -1]) * PILOT_POLARITY[index_in_package % 127]
     carriers = [0] * 64
     carriers[-32] = 0
@@ -117,7 +117,7 @@ def modulate_ofdm(ofdm_symbol: np.ndarray, index_in_package: int) -> np.ndarray:
     return result
 
 
-def demodulate_ofdm(samples: np.ndarray, index_in_package: int) -> Tuple[np.ndarray, np.ndarray]:
+def demodulate_ofdm(samples: np.ndarray, equalizer:np.array, index_in_package: int) -> np.ndarray:
     """ Undo the 'modulate_ofdm'
 
     Args:
@@ -128,68 +128,70 @@ def demodulate_ofdm(samples: np.ndarray, index_in_package: int) -> Tuple[np.ndar
         OFDM symbol (48 frequency domain values) and 4 pilot symbols (frequency domain)
 
     """
+    assert len(samples) == 80
+    carriers = np.fft.fft(samples[16:80]) * equalizer
 
-    samples = samples[16:80]  # remove GI
-    carrier = np.fft.fft(samples)
+    pilots = np.empty(4, dtype=complex)
+    ofdm_symbol = np.empty(48, dtype=complex)
+    ofdm_symbol[0] = carriers[-26]
+    ofdm_symbol[1] = carriers[-25]
+    ofdm_symbol[2] = carriers[-24]
+    ofdm_symbol[3] = carriers[-23]
+    ofdm_symbol[4] = carriers[-22]
+    pilots[0] = carriers[-21]
+    ofdm_symbol[5] = carriers[-20]
+    ofdm_symbol[6] = carriers[-19]
+    ofdm_symbol[7] = carriers[-18]
+    ofdm_symbol[8] = carriers[-17]
+    ofdm_symbol[9] = carriers[-16]
+    ofdm_symbol[10] = carriers[-15]
+    ofdm_symbol[11] = carriers[-14]
+    ofdm_symbol[12] = carriers[-13]
+    ofdm_symbol[13] = carriers[-12]
+    ofdm_symbol[14] = carriers[-11]
+    ofdm_symbol[15] = carriers[-10]
+    ofdm_symbol[16] = carriers[-9]
+    ofdm_symbol[17] = carriers[-8]
+    pilots[1] = carriers[-7]
+    ofdm_symbol[18] = carriers[-6]
+    ofdm_symbol[19] = carriers[-5]
+    ofdm_symbol[20] = carriers[-4]
+    ofdm_symbol[21] = carriers[-3]
+    ofdm_symbol[22] = carriers[-2]
+    ofdm_symbol[23] = carriers[-1]
+    ofdm_symbol[24] = carriers[1]
+    ofdm_symbol[25] = carriers[2]
+    ofdm_symbol[26] = carriers[3]
+    ofdm_symbol[27] = carriers[4]
+    ofdm_symbol[28] = carriers[5]
+    ofdm_symbol[29] = carriers[6]
+    pilots[2] = carriers[7]
+    ofdm_symbol[30] = carriers[8]
+    ofdm_symbol[31] = carriers[9]
+    ofdm_symbol[32] = carriers[10]
+    ofdm_symbol[33] = carriers[11]
+    ofdm_symbol[34] = carriers[12]
+    ofdm_symbol[35] = carriers[13]
+    ofdm_symbol[36] = carriers[14]
+    ofdm_symbol[37] = carriers[15]
+    ofdm_symbol[38] = carriers[16]
+    ofdm_symbol[39] = carriers[17]
+    ofdm_symbol[40] = carriers[18]
+    ofdm_symbol[41] = carriers[19]
+    ofdm_symbol[42] = carriers[20]
+    pilots[3] = carriers[21]
+    ofdm_symbol[43] = carriers[22]
+    ofdm_symbol[44] = carriers[23]
+    ofdm_symbol[45] = carriers[24]
+    ofdm_symbol[46] = carriers[25]
+    ofdm_symbol[47] = carriers[26]
 
-    pilots = [0] * 4
-    ofdm_symbol = [0] * 48
-    ofdm_symbol[0] = carrier[-26]
-    ofdm_symbol[1] = carrier[-25]
-    ofdm_symbol[2] = carrier[-24]
-    ofdm_symbol[3] = carrier[-23]
-    ofdm_symbol[4] = carrier[-22]
-    pilots[0] = carrier[-21]
-    ofdm_symbol[5] = carrier[-20]
-    ofdm_symbol[6] = carrier[-19]
-    ofdm_symbol[7] = carrier[-18]
-    ofdm_symbol[8] = carrier[-17]
-    ofdm_symbol[9] = carrier[-16]
-    ofdm_symbol[10] = carrier[-15]
-    ofdm_symbol[11] = carrier[-14]
-    ofdm_symbol[12] = carrier[-13]
-    ofdm_symbol[13] = carrier[-12]
-    ofdm_symbol[14] = carrier[-11]
-    ofdm_symbol[15] = carrier[-10]
-    ofdm_symbol[16] = carrier[-9]
-    ofdm_symbol[17] = carrier[-8]
-    pilots[1] = carrier[-7]
-    ofdm_symbol[18] = carrier[-6]
-    ofdm_symbol[19] = carrier[-5]
-    ofdm_symbol[20] = carrier[-4]
-    ofdm_symbol[21] = carrier[-3]
-    ofdm_symbol[22] = carrier[-2]
-    ofdm_symbol[23] = carrier[-1]
-    ofdm_symbol[24] = carrier[1]
-    ofdm_symbol[25] = carrier[2]
-    ofdm_symbol[26] = carrier[3]
-    ofdm_symbol[27] = carrier[4]
-    ofdm_symbol[28] = carrier[5]
-    ofdm_symbol[29] = carrier[6]
-    pilots[2] = carrier[7]
-    ofdm_symbol[30] = carrier[8]
-    ofdm_symbol[31] = carrier[9]
-    ofdm_symbol[32] = carrier[10]
-    ofdm_symbol[33] = carrier[11]
-    ofdm_symbol[34] = carrier[12]
-    ofdm_symbol[35] = carrier[13]
-    ofdm_symbol[36] = carrier[14]
-    ofdm_symbol[37] = carrier[15]
-    ofdm_symbol[38] = carrier[16]
-    ofdm_symbol[39] = carrier[17]
-    ofdm_symbol[40] = carrier[18]
-    ofdm_symbol[41] = carrier[19]
-    ofdm_symbol[42] = carrier[20]
-    pilots[3] = carrier[21]
-    ofdm_symbol[43] = carrier[22]
-    ofdm_symbol[44] = carrier[23]
-    ofdm_symbol[45] = carrier[24]
-    ofdm_symbol[46] = carrier[25]
-    ofdm_symbol[47] = carrier[26]
+    # remove latent frequency offset by using pilot symbols
+    pilots *= PILOT_POLARITY[index_in_package % 127]
+    mean_phase_offset = np.angle(np.mean(pilots))
+    # ofdm_symbol *= np.exp(-1j * mean_phase_offset)
 
-    # 'derotate' pilots i.e. point all pilots to the 1 + 0j symbol
-    pilots = np.array([carrier[-21], carrier[-7], carrier[7], -carrier[21]]) * PILOT_POLARITY[index_in_package % 127]
-    return np.array(ofdm_symbol), pilots
+    return ofdm_symbol
 
 
 def test_ofdm_i18():
@@ -222,5 +224,5 @@ def test_ofdm_i18():
     np.testing.assert_equal(expected[1:-1], np.round(output[1:-1], 3))
 
     # test demodulation
-    ofdm_symbol, pilots = demodulate_ofdm(output, index_in_package=1)
+    ofdm_symbol = demodulate_ofdm(output, equalizer=[1] * 64, index_in_package=1)
     np.testing.assert_allclose(ofdm_symbol, input_ofdm_symbol)
