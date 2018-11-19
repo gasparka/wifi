@@ -109,6 +109,7 @@ def evm_db(rx, reference):
 
 def evm_db2(rx, bits_per_symbol):
     from ieee80211phy.modulation import symbols_error
+    rx = np.array(rx).flatten()
     error = symbols_error(rx, bits_per_symbol)
     error_power = np.mean([power(e) for e in error])
 
@@ -126,24 +127,39 @@ def evm_vs_time(rx, ref):
     return [evm_db(crx, cref) for crx, cref in zip(rx, ref)]
 
 
-def plot_rx(rx_symbols):
+def plot_rx(rx_symbols, bits_per_symbol):
     rx_symbols = np.array(rx_symbols)
-    figsize = (9.75, 10)
+    figsize = (9.75, 15)
     fig, ax = plt.subplots(3, figsize=figsize, gridspec_kw={'height_ratios': [4, 2, 2]})
 
     # constellation
-    rx_constellation = rx_symbols.flatten()
-    ax[0].set(title=f'Constellation EVM={evm_db2(rx_constellation, 4):.2f} dB')
+    rx_constellation = np.array(rx_symbols).flatten()
+    evm = evm_db2(rx_constellation, bits_per_symbol)
+    ax[0].set(title=f'Constellation EVM={evm:.2f} dB')
     ax[0].scatter(rx_constellation.real, rx_constellation.imag)
     ax[0].grid(True)
-    tick_base = 1 / np.sqrt(10)
-    ax[0].set_xticks([-4 * tick_base, -2 * tick_base, 0, tick_base * 2, tick_base * 4])
-    ax[0].set_yticks([-4 * tick_base, -2 * tick_base, 0, tick_base * 2, tick_base * 4])
+
+    if bits_per_symbol == 4:
+        tick_base = 1 / np.sqrt(10)
+        ax[0].set_xticks([-4 * tick_base, -2 * tick_base, 0, tick_base * 2, tick_base * 4])
+        ax[0].set_yticks([-4 * tick_base, -2 * tick_base, 0, tick_base * 2, tick_base * 4])
+    elif bits_per_symbol == 1:
+        tick_base = 1
+        ax[0].scatter([-1, 1], [0, 0], marker='x')
+        ax[0].set_xticks([-2 * tick_base, 0, tick_base * 2])
+        ax[0].set_yticks([-2 * tick_base, tick_base * 2])
+    elif bits_per_symbol == 2:
+        tick_base = 1 / np.sqrt(2)
+        ax[0].scatter([tick_base, tick_base, -tick_base, -tick_base], [tick_base, -tick_base, tick_base, -tick_base], marker='x')
+        ax[0].set_xticks([-2 * tick_base, 0, tick_base * 2])
+        ax[0].set_yticks([-2 * tick_base, 0, tick_base * 2])
+
+
     ax[0].set_xlabel('Real')
     ax[0].set_ylabel('Imag')
 
     # # evm vs carrier
-    evm_carrier = [evm_db2(crx, 4) for crx in rx_symbols.T]
+    evm_carrier = [evm_db2(crx, bits_per_symbol) for crx in rx_symbols.T]
     ids = [-26, -25, -24, -23, -22,
            -20, -19, -18, -17, -16, -15, -14, -13, -12, -11, -10, -9, -8,
            -6, -5, -4, -3, -2, -1,
@@ -161,7 +177,7 @@ def plot_rx(rx_symbols):
     ax[1].set_ylabel('EVM')
 
     # evm vs time
-    evm_time = [evm_db2(crx, 4) for crx in rx_symbols]
+    evm_time = [evm_db2(crx, bits_per_symbol) for crx in rx_symbols]
     ax[2].set(title=f'EVM vs time')
     ax[2].plot(evm_time)
     ax[2].plot(moving_average_valid(evm_time, 32), alpha=0.25)

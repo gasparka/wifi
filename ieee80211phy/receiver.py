@@ -11,10 +11,10 @@ from ieee80211phy.preamble import long_training_symbol
 from ieee80211phy.scrambler import scrambler
 from ieee80211phy.signal_field import decode_signal_field
 from ieee80211phy.transmitter import get_params_from_rate, transmitter
-from ieee80211phy.util import moving_average, hex_to_bitstr, awgn
+from ieee80211phy.util import moving_average, hex_to_bitstr, awgn, evm_db2
 
 logger = logging.getLogger(__name__)
-
+Trace = {}
 
 def packet_detector(input):
     """
@@ -22,18 +22,21 @@ def packet_detector(input):
     """
     autocorr = (input[:-16] * np.conjugate(input[16:])).real
     autocorr = moving_average(autocorr, 8)
+    Trace['detector_autocorr'] = autocorr
 
     power = (input * np.conjugate(input)).real
     power = moving_average(power, 8)
+    Trace['detector_power'] = power
 
     ratio = [1.0 if x else -1.0 for x in autocorr >= 0.5 * power[:len(autocorr)]]
     ratio = moving_average(ratio, 128)  # valid packet will have ratio 1.0
+    Trace['detector_ratio'] = ratio
 
     # extract sampling points
     state = 0
     timings = []
     for i in range(len(ratio)):
-        if ratio[i] >= 1.0:
+        if ratio[i] >= 0.95:
             state = 1
         elif ratio[i] < 0.77:
             if state == 1:
@@ -44,7 +47,6 @@ def packet_detector(input):
     return timings
 
 
-Trace = {}
 
 
 def receiver(iq):
@@ -73,7 +75,7 @@ def receiver(iq):
     data_groups = iq[signal_end: signal_end + (80 * n_ofdm_symbols)].reshape((-1, 80))
     ofdm_symbols = [demodulate_ofdm(group, equalizer, index_in_package=1 + i)
                     for i, group in enumerate(data_groups)]
-    Trace['data_symbols'] = ofdm_symbols
+    Trace['data_symbols'] = (ofdm_symbols, coded_bits_subcarrier)
 
     """ Symbols to bits flow """
     bits = [symbols_to_bits(symbol, bits_per_symbol=coded_bits_subcarrier)
@@ -82,6 +84,13 @@ def receiver(iq):
     bits = conv_decode(bits, coding_rate)
     bits = scrambler(bits)
     return bits[16:16 + length_bytes * 8]
+
+
+def test_packet_detector():
+    iq = np.load('/home/gaspar/git/ieee80211phy/data/limemini_wire_loopback.npy')
+    iq = np.hstack([iq, iq, iq, iq])
+    indexes = packet_detector(iq)
+    assert indexes == [95058, 295058, 495058, 695058]
 
 
 @pytest.mark.parametrize('data_rate', [6, 9, 12, 18, 24, 36, 48, 54])
@@ -97,8 +106,31 @@ def test_loopback(data_rate):
     assert rx_bits == tx_bits
 
 
-def test_packet_detector():
-    iq = np.load('/home/gaspar/git/ieee80211phy/data/limemini_wire_loopback.npy')
-    iq = np.hstack([iq, iq, iq, iq])
-    indexes = packet_detector(iq)
-    assert indexes == [95058, 295058, 495058, 695058]
+def test_evm_limemini():
+    """
+    Recorded with a single LimeSDR-Mini - same device guarantees 0 freq and sampling offset!
+    Package 4095 bytes, 228 OFDM symbols, data_rate=36, modulation=16-QAM, coding_rate=3/4
+    """
+
+    iq = np.load('/home/gaspar/git/ieee80211phy/data/limemini_air.npy')
+    i = packet_detector(iq)[0]
+    bits = receiver(iq[i-2:])
+
+    evm = evm_db2(*Trace['data_symbols'])
+    assert int(evm) == -25
+
+
+# def test_limemini_lime_air():
+#     """
+#     Lime-Mini as TX and Lime as RX. First test with different devices, resulted in frequency offset - that
+#     was best corrected using the pilot symbols!
+#     """
+#
+#     iq = np.load('/home/gaspar/git/ieee80211phy/data/limemini_lime_air.npy')
+#     r = Receiver(sample_advance=-3)
+#     symbols = r.main(iq, n_symbols=229)
+#
+#     from ieee80211phy.transmitter.subcarrier_modulation_mapping import mapper_decide
+#     reference_symbols = np.array([[mapper_decide(j, 4) for j in x] for x in symbols])
+#     evm = evm_db(symbols, reference_symbols)
+#     assert int(evm) == -26

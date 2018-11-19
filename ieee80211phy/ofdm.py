@@ -1,3 +1,5 @@
+import queue
+from collections import deque
 from typing import Tuple
 import numpy as np
 
@@ -117,6 +119,7 @@ def modulate_ofdm(ofdm_symbol: np.ndarray, index_in_package: int) -> np.ndarray:
     return result
 
 
+l = deque(maxlen=16)
 def demodulate_ofdm(samples: np.ndarray, equalizer:np.array, index_in_package: int) -> np.ndarray:
     """ Undo the 'modulate_ofdm'
 
@@ -128,6 +131,9 @@ def demodulate_ofdm(samples: np.ndarray, equalizer:np.array, index_in_package: i
         OFDM symbol (48 frequency domain values) and 4 pilot symbols (frequency domain)
 
     """
+    if index_in_package == 0:
+        l.clear()
+
     assert len(samples) == 80
     carriers = np.fft.fft(samples[16:80]) * equalizer
 
@@ -188,8 +194,13 @@ def demodulate_ofdm(samples: np.ndarray, equalizer:np.array, index_in_package: i
 
     # remove latent frequency offset by using pilot symbols
     pilots *= PILOT_POLARITY[index_in_package % 127]
-    mean_phase_offset = np.angle(np.mean(pilots))
-    # ofdm_symbol *= np.exp(-1j * mean_phase_offset)
+    l.append(pilots[0])
+    l.append(pilots[1])
+    l.append(pilots[2])
+    l.append(pilots[3])
+    # print(l)
+    mean_phase_offset = np.angle(np.mean(l))
+    ofdm_symbol *= np.exp(-1j * mean_phase_offset)
 
     return ofdm_symbol
 
