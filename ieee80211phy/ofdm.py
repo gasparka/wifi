@@ -119,90 +119,89 @@ def modulate_ofdm(ofdm_symbol: np.ndarray, index_in_package: int) -> np.ndarray:
     return result
 
 
-l = deque(maxlen=16)
-def demodulate_ofdm(samples: np.ndarray, equalizer:np.array, index_in_package: int) -> np.ndarray:
-    """ Undo the 'modulate_ofdm'
+def demodulate_ofdm_factory():
+    pilot_history = deque(maxlen=4) # each symbol has 4 pilots, so 8 is average over 2 symbols
 
-    Args:
-        samples: 80 time domain samples
-        index_in_package: determines pilot polarity, note that SIGNAL field has index of 0
+    def demodulate_ofdm(samples: np.ndarray, equalizer: np.array, index_in_package: int) -> np.ndarray:
+        """ Undo the 'modulate_ofdm'
 
-    Returns:
-        OFDM symbol (48 frequency domain values) and 4 pilot symbols (frequency domain)
+        Args:
+            samples: 80 time domain samples
+            index_in_package: determines pilot polarity, note that SIGNAL field has index of 0
 
-    """
-    if index_in_package == 0:
-        l.clear()
+        Returns:
+            OFDM symbol (48 frequency domain values) and 4 pilot symbols (frequency domain)
 
-    assert len(samples) == 80
-    carriers = np.fft.fft(samples[16:80]) * equalizer
+        """
 
-    pilots = np.empty(4, dtype=complex)
-    ofdm_symbol = np.empty(48, dtype=complex)
-    ofdm_symbol[0] = carriers[-26]
-    ofdm_symbol[1] = carriers[-25]
-    ofdm_symbol[2] = carriers[-24]
-    ofdm_symbol[3] = carriers[-23]
-    ofdm_symbol[4] = carriers[-22]
-    pilots[0] = carriers[-21]
-    ofdm_symbol[5] = carriers[-20]
-    ofdm_symbol[6] = carriers[-19]
-    ofdm_symbol[7] = carriers[-18]
-    ofdm_symbol[8] = carriers[-17]
-    ofdm_symbol[9] = carriers[-16]
-    ofdm_symbol[10] = carriers[-15]
-    ofdm_symbol[11] = carriers[-14]
-    ofdm_symbol[12] = carriers[-13]
-    ofdm_symbol[13] = carriers[-12]
-    ofdm_symbol[14] = carriers[-11]
-    ofdm_symbol[15] = carriers[-10]
-    ofdm_symbol[16] = carriers[-9]
-    ofdm_symbol[17] = carriers[-8]
-    pilots[1] = carriers[-7]
-    ofdm_symbol[18] = carriers[-6]
-    ofdm_symbol[19] = carriers[-5]
-    ofdm_symbol[20] = carriers[-4]
-    ofdm_symbol[21] = carriers[-3]
-    ofdm_symbol[22] = carriers[-2]
-    ofdm_symbol[23] = carriers[-1]
-    ofdm_symbol[24] = carriers[1]
-    ofdm_symbol[25] = carriers[2]
-    ofdm_symbol[26] = carriers[3]
-    ofdm_symbol[27] = carriers[4]
-    ofdm_symbol[28] = carriers[5]
-    ofdm_symbol[29] = carriers[6]
-    pilots[2] = carriers[7]
-    ofdm_symbol[30] = carriers[8]
-    ofdm_symbol[31] = carriers[9]
-    ofdm_symbol[32] = carriers[10]
-    ofdm_symbol[33] = carriers[11]
-    ofdm_symbol[34] = carriers[12]
-    ofdm_symbol[35] = carriers[13]
-    ofdm_symbol[36] = carriers[14]
-    ofdm_symbol[37] = carriers[15]
-    ofdm_symbol[38] = carriers[16]
-    ofdm_symbol[39] = carriers[17]
-    ofdm_symbol[40] = carriers[18]
-    ofdm_symbol[41] = carriers[19]
-    ofdm_symbol[42] = carriers[20]
-    pilots[3] = carriers[21]
-    ofdm_symbol[43] = carriers[22]
-    ofdm_symbol[44] = carriers[23]
-    ofdm_symbol[45] = carriers[24]
-    ofdm_symbol[46] = carriers[25]
-    ofdm_symbol[47] = carriers[26]
 
-    # remove latent frequency offset by using pilot symbols
-    pilots *= PILOT_POLARITY[index_in_package % 127]
-    l.append(pilots[0])
-    l.append(pilots[1])
-    l.append(pilots[2])
-    l.append(pilots[3])
-    # print(l)
-    mean_phase_offset = np.angle(np.mean(l))
-    ofdm_symbol *= np.exp(-1j * mean_phase_offset)
+        assert len(samples) == 80
+        carriers = np.fft.fft(samples[16:80]) * equalizer
 
-    return ofdm_symbol
+        pilots = np.empty(4, dtype=complex)
+        ofdm_symbol = np.empty(48, dtype=complex)
+        ofdm_symbol[0] = carriers[-26]
+        ofdm_symbol[1] = carriers[-25]
+        ofdm_symbol[2] = carriers[-24]
+        ofdm_symbol[3] = carriers[-23]
+        ofdm_symbol[4] = carriers[-22]
+        pilots[0] = carriers[-21]
+        ofdm_symbol[5] = carriers[-20]
+        ofdm_symbol[6] = carriers[-19]
+        ofdm_symbol[7] = carriers[-18]
+        ofdm_symbol[8] = carriers[-17]
+        ofdm_symbol[9] = carriers[-16]
+        ofdm_symbol[10] = carriers[-15]
+        ofdm_symbol[11] = carriers[-14]
+        ofdm_symbol[12] = carriers[-13]
+        ofdm_symbol[13] = carriers[-12]
+        ofdm_symbol[14] = carriers[-11]
+        ofdm_symbol[15] = carriers[-10]
+        ofdm_symbol[16] = carriers[-9]
+        ofdm_symbol[17] = carriers[-8]
+        pilots[1] = carriers[-7]
+        ofdm_symbol[18] = carriers[-6]
+        ofdm_symbol[19] = carriers[-5]
+        ofdm_symbol[20] = carriers[-4]
+        ofdm_symbol[21] = carriers[-3]
+        ofdm_symbol[22] = carriers[-2]
+        ofdm_symbol[23] = carriers[-1]
+        ofdm_symbol[24] = carriers[1]
+        ofdm_symbol[25] = carriers[2]
+        ofdm_symbol[26] = carriers[3]
+        ofdm_symbol[27] = carriers[4]
+        ofdm_symbol[28] = carriers[5]
+        ofdm_symbol[29] = carriers[6]
+        pilots[2] = carriers[7]
+        ofdm_symbol[30] = carriers[8]
+        ofdm_symbol[31] = carriers[9]
+        ofdm_symbol[32] = carriers[10]
+        ofdm_symbol[33] = carriers[11]
+        ofdm_symbol[34] = carriers[12]
+        ofdm_symbol[35] = carriers[13]
+        ofdm_symbol[36] = carriers[14]
+        ofdm_symbol[37] = carriers[15]
+        ofdm_symbol[38] = carriers[16]
+        ofdm_symbol[39] = carriers[17]
+        ofdm_symbol[40] = carriers[18]
+        ofdm_symbol[41] = carriers[19]
+        ofdm_symbol[42] = carriers[20]
+        pilots[3] = carriers[21]
+        ofdm_symbol[43] = carriers[22]
+        ofdm_symbol[44] = carriers[23]
+        ofdm_symbol[45] = carriers[24]
+        ofdm_symbol[46] = carriers[25]
+        ofdm_symbol[47] = carriers[26]
+
+        # remove latent frequency offset by using pilot symbols
+        pilots *= PILOT_POLARITY[index_in_package % 127]
+        pilot_history.extend(pilots)
+        mean_phase_offset = np.angle(np.mean(pilot_history))
+        ofdm_symbol *= np.exp(-1j * mean_phase_offset)
+
+        return ofdm_symbol
+
+    return demodulate_ofdm
 
 
 def test_ofdm_i18():

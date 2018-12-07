@@ -1,4 +1,7 @@
 import logging
+from dataclasses import dataclass
+from typing import Tuple
+
 import numpy as np
 import pytest
 
@@ -6,7 +9,7 @@ from ieee80211phy import scrambler
 from ieee80211phy.conv_coding import conv_decode
 from ieee80211phy.interleaving import interleave
 from ieee80211phy.modulation import symbols_to_bits
-from ieee80211phy.ofdm import demodulate_ofdm
+from ieee80211phy.ofdm import demodulate_ofdm_factory
 from ieee80211phy.preamble import long_training_symbol
 from ieee80211phy.scrambler import scrambler
 from ieee80211phy.signal_field import decode_signal_field
@@ -15,6 +18,7 @@ from ieee80211phy.util import moving_average, hex_to_bitstr, awgn, evm_db2
 
 logger = logging.getLogger(__name__)
 Trace = {}
+
 
 def packet_detector(input):
     """
@@ -47,6 +51,17 @@ def packet_detector(input):
     return timings
 
 
+@dataclass
+class Packet:
+    equalizer: np.ndarray
+    signal_field_symbols: Tuple[np.ndarray, int]
+    data_rate: int
+    n_ofdm_symbols: int
+    length_bytes: int
+    modulation: str
+    coding_rate: str
+    data_symbols: Tuple[np.ndarray, int]
+    bits: str
 
 
 def receiver(iq):
@@ -54,43 +69,53 @@ def receiver(iq):
     avg_train = (iq[:64] + iq[64:128]) / 2
     channel_estimate = np.fft.fft(avg_train) / long_training_symbol()
     equalizer = 1 / channel_estimate
-    Trace['equalizer'] = equalizer
 
     """ Signal field demodulation - this gives us the data rate for the payload and also the payload length """
+    ofdm_demodulator = demodulate_ofdm_factory()
     signal = iq[128: 128 + 80]
-    symbols = demodulate_ofdm(signal, equalizer, index_in_package=0)
-    Trace['signal_symbols'] = symbols
-    bits = symbols_to_bits(symbols, bits_per_symbol=1)
+    signal_symbols = ofdm_demodulator(signal, equalizer, index_in_package=0)
+    bits = symbols_to_bits(signal_symbols, bits_per_symbol=1)
     bits = interleave(bits, coded_bits_symbol=48, coded_bits_subcarrier=1, undo=True)
     bits = conv_decode(bits)
     data_rate, length_bytes = decode_signal_field(bits)
     modulation, coding_rate, coded_bits_subcarrier, coded_bits_symbol, data_bits_symbol = get_params_from_rate(
         data_rate)
     n_ofdm_symbols = int(np.ceil((length_bytes * 8 + 22) / data_bits_symbol))
-    logger.info(f'Package {length_bytes} bytes, {n_ofdm_symbols} OFDM symbols\n'
-                f'\t data_rate={data_rate}, modulation={modulation}, coding_rate={coding_rate}')
+    logger.info(
+        f'Package {length_bytes} bytes -> {n_ofdm_symbols} OFDM symbols @ {data_rate}MB/s ({modulation}, {coding_rate})')
 
     """ Payload demodulation """
     signal_end = 128 + 80
     data_groups = iq[signal_end: signal_end + (80 * n_ofdm_symbols)].reshape((-1, 80))
-    ofdm_symbols = [demodulate_ofdm(group, equalizer, index_in_package=1 + i)
-                    for i, group in enumerate(data_groups)]
-    Trace['data_symbols'] = (ofdm_symbols, coded_bits_subcarrier)
+    data_symbols = np.array([ofdm_demodulator(group, equalizer, index_in_package=1 + i)
+                             for i, group in enumerate(data_groups)])
 
     """ Symbols to bits flow """
     bits = [symbols_to_bits(symbol, bits_per_symbol=coded_bits_subcarrier)
-            for symbol in ofdm_symbols]
+            for symbol in data_symbols]
     bits = ''.join(interleave(b, coded_bits_symbol, coded_bits_subcarrier, undo=True) for b in bits)
     bits = conv_decode(bits, coding_rate)
     bits = scrambler(bits)
-    return bits[16:16 + length_bytes * 8]
+    bits = bits[16:16 + length_bytes * 8]
+    # data_symbols = None
+
+    result = Packet(equalizer,
+                    (signal_symbols, 1),
+                    data_rate,
+                    n_ofdm_symbols,
+                    length_bytes,
+                    modulation,
+                    coding_rate,
+                    (data_symbols, coded_bits_subcarrier),
+                    bits)
+    return result
 
 
 def test_packet_detector():
-    iq = np.load('/home/gaspar/git/ieee80211phy/data/limemini_wire_loopback.npy')
+    iq = np.load('/home/gaspar/git/ieee80211phy/data/limemini_lime_air.npy')
     iq = np.hstack([iq, iq, iq, iq])
     indexes = packet_detector(iq)
-    assert indexes == [95058, 295058, 495058, 695058]
+    assert indexes == [48075, 148075, 248075, 348075]
 
 
 @pytest.mark.parametrize('data_rate', [6, 9, 12, 18, 24, 36, 48, 54])
@@ -102,8 +127,8 @@ def test_loopback(data_rate):
     iq = awgn(iq, 20)
 
     i = packet_detector(iq)[0]
-    rx_bits = receiver(iq[i - 2:])
-    assert rx_bits == tx_bits
+    packet = receiver(iq[i - 2:])
+    assert packet.bits == tx_bits
 
 
 def test_evm_limemini():
@@ -114,11 +139,48 @@ def test_evm_limemini():
 
     iq = np.load('/home/gaspar/git/ieee80211phy/data/limemini_air.npy')
     i = packet_detector(iq)[0]
-    bits = receiver(iq[i-2:])
+    packet = receiver(iq[i - 2:])
 
-    evm = evm_db2(*Trace['data_symbols'])
-    assert int(evm) == -25
+    evm = evm_db2(*packet.data_symbols)
+    assert int(evm) == -23
 
+
+def test_evm2():
+    iq = np.load('/home/gaspar/git/ieee80211phy/data/sym8_rate24.npy')
+    i = packet_detector(iq)[0]
+    packet = receiver(iq[i - 2:])
+
+    evm = evm_db2(*packet.data_symbols)
+    assert int(evm) == -19
+
+
+def test_evm3():
+    """ This one has weird Sin shape EVM vs time.. sampling errro? """
+    iq = np.load('/home/gaspar/git/ieee80211phy/data/sym130_rate24.npy')
+    i = packet_detector(iq)[0]
+    packet = receiver(iq[i - 2:])
+
+    evm = evm_db2(*packet.data_symbols)
+    assert int(evm) == -18
+
+
+def test_evm4():
+    """ This one has weird Sin shape EVM vs time.. sampling errro? """
+    iq = np.load('/home/gaspar/git/ieee80211phy/data/sym173_rate18.npy')
+    i = packet_detector(iq)[0]
+    packet = receiver(iq[i - 3:])
+
+    evm = evm_db2(*packet.data_symbols)
+    assert int(evm) == -18
+
+
+def test_evm5():
+    iq = np.load('/home/gaspar/git/ieee80211phy/data/sym16_rate48.npy')
+    i = packet_detector(iq)[0]
+    packet = receiver(iq[i - 3:])
+
+    evm = evm_db2(*packet.data_symbols)
+    assert int(evm) == -19
 
 # def test_limemini_lime_air():
 #     """

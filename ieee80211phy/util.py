@@ -143,6 +143,10 @@ def plot_rx(rx_symbols, bits_per_symbol):
         tick_base = 1 / np.sqrt(10)
         ax[0].set_xticks([-4 * tick_base, -2 * tick_base, 0, tick_base * 2, tick_base * 4])
         ax[0].set_yticks([-4 * tick_base, -2 * tick_base, 0, tick_base * 2, tick_base * 4])
+    elif  bits_per_symbol == 6:
+        tick_base = 1 / np.sqrt(42)
+        ax[0].set_xticks([-8 * tick_base, -6 * tick_base, -4 * tick_base, -2 * tick_base, 0, tick_base * 2, tick_base * 4, 6 * tick_base, 8 * tick_base])
+        ax[0].set_yticks([-8 * tick_base, -6 * tick_base, -4 * tick_base, -2 * tick_base, 0, tick_base * 2, tick_base * 4, 6 * tick_base, 8 * tick_base])
     elif bits_per_symbol == 1:
         tick_base = 1
         ax[0].scatter([-1, 1], [0, 0], marker='x')
@@ -196,7 +200,7 @@ def plot_channel_estimate(equalizer):
 
     fig, ax = plt.subplots(2, figsize=(9.75, 6), sharex='all')
     taps = np.fft.fftshift(equalizer)
-    mag = 20 * np.log10(taps)
+    mag = 20 * np.log10(np.abs(taps))
     deg = np.degrees(np.angle(taps))
     ax[0].set_title('Equalizer magnitude response')
     ax[0].plot(np.arange(-32, 32), mag)
