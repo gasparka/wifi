@@ -9,6 +9,45 @@ logging.basicConfig(level=logging.DEBUG)
 log = logging.getLogger('util')
 
 
+class Bits(str):
+    def __new__(cls, val: str):
+        if val[0:2] in ('0x', '0X'):
+            val = val[2:]
+            num_of_bits = int(len(val) * np.log2(16))
+            val = int_to_binstr(int(val, 16), num_of_bits)
+            val = flip_byte_endian(val)  # IEE802.11 examples need this?!, tho it is confusing
+
+        return str.__new__(cls, val)
+
+
+def default_iee80211_package():
+    # Table I-1—The message for the BCC example
+    input = Bits('0x0402002E006008CD37A60020D6013CF1006008AD3BAF00004A6F792C2062726967687420737061726B206F662064'
+                 '6976696E6974792C0A4461756768746572206F6620456C797369756D2C0A466972652D696E73697265642077652074'
+                 '726561673321B6')
+
+    from ieee80211phy.transmitter import transmitter
+    return input, transmitter(Bits(input), data_rate=36)
+
+
+def bit_error_rate(snr):
+    from ieee80211phy.receiver import receiver
+    bits, iq = default_iee80211_package()
+
+    def one(iq):
+        iq = awgn(iq, snr)
+        try:
+            res = receiver(iq[160 + 32:])
+        except:
+            return 1.0
+        diff = len([True for x, y in zip(bits, res.bits) if x != y])
+        return diff / len(bits)
+
+    diffs = [one(iq) for _ in range(64)]
+
+    return np.mean(diffs)
+
+
 def hex_to_bitstr(hstr):
     """ http://stackoverflow.com/questions/1425493/convert-hex-to-binary """
     assert isinstance(hstr, str)
@@ -143,10 +182,14 @@ def plot_rx(rx_symbols, bits_per_symbol):
         tick_base = 1 / np.sqrt(10)
         ax[0].set_xticks([-4 * tick_base, -2 * tick_base, 0, tick_base * 2, tick_base * 4])
         ax[0].set_yticks([-4 * tick_base, -2 * tick_base, 0, tick_base * 2, tick_base * 4])
-    elif  bits_per_symbol == 6:
+    elif bits_per_symbol == 6:
         tick_base = 1 / np.sqrt(42)
-        ax[0].set_xticks([-8 * tick_base, -6 * tick_base, -4 * tick_base, -2 * tick_base, 0, tick_base * 2, tick_base * 4, 6 * tick_base, 8 * tick_base])
-        ax[0].set_yticks([-8 * tick_base, -6 * tick_base, -4 * tick_base, -2 * tick_base, 0, tick_base * 2, tick_base * 4, 6 * tick_base, 8 * tick_base])
+        ax[0].set_xticks(
+            [-8 * tick_base, -6 * tick_base, -4 * tick_base, -2 * tick_base, 0, tick_base * 2, tick_base * 4,
+             6 * tick_base, 8 * tick_base])
+        ax[0].set_yticks(
+            [-8 * tick_base, -6 * tick_base, -4 * tick_base, -2 * tick_base, 0, tick_base * 2, tick_base * 4,
+             6 * tick_base, 8 * tick_base])
     elif bits_per_symbol == 1:
         tick_base = 1
         ax[0].scatter([-1, 1], [0, 0], marker='x')
@@ -154,10 +197,10 @@ def plot_rx(rx_symbols, bits_per_symbol):
         ax[0].set_yticks([-2 * tick_base, tick_base * 2])
     elif bits_per_symbol == 2:
         tick_base = 1 / np.sqrt(2)
-        ax[0].scatter([tick_base, tick_base, -tick_base, -tick_base], [tick_base, -tick_base, tick_base, -tick_base], marker='x')
+        ax[0].scatter([tick_base, tick_base, -tick_base, -tick_base], [tick_base, -tick_base, tick_base, -tick_base],
+                      marker='x')
         ax[0].set_xticks([-2 * tick_base, 0, tick_base * 2])
         ax[0].set_yticks([-2 * tick_base, 0, tick_base * 2])
-
 
     ax[0].set_xlabel('Real')
     ax[0].set_ylabel('Imag')

@@ -1,6 +1,7 @@
 import queue
 from collections import deque
-from typing import Tuple
+from dataclasses import dataclass
+from typing import List
 import numpy as np
 
 PILOT_POLARITY = [1, 1, 1, 1, -1, -1, -1, 1, -1, -1, -1, -1, 1, 1, -1, 1, -1, -1, 1, 1, -1, 1, 1, -1, 1, 1, 1, 1, 1, 1,
@@ -10,7 +11,34 @@ PILOT_POLARITY = [1, 1, 1, 1, -1, -1, -1, 1, -1, -1, -1, -1, 1, 1, -1, 1, -1, -1
                   1, 1, -1, -1, -1, -1, -1, -1, -1]
 
 
-def modulate_ofdm(ofdm_symbol: np.ndarray, index_in_package: int) -> np.ndarray:
+class Symbol(complex):
+    """
+    Frequency domain value that is used to modulate carriers
+    """
+    pass
+
+
+@dataclass(frozen=True)
+class OFDMSymbol:
+    """ 48 symbols i.e. one symbol to modulate each IEE802.11 OFDM carrier """
+    symbols: List[Symbol]
+
+
+@dataclass(frozen=True)
+class OFDMFrame:
+    """ 80 time-domain samples. Each frame is composed of 16 guard-interval (GI) (same as last ..) and
+    64 ifft values"""
+    samples: List[complex]
+
+
+class Packet:
+    short_train: List[OFDMSymbol]
+    long_train: List[OFDMSymbol]
+    payload: List[OFDMSymbol
+    ]
+
+
+def modulate_ofdm(ofdm_symbol: OFDMSymbol, index_in_package: int) -> OFDMFrame:
     """
     j) Divide the complex number string into groups of 48 complex numbers. Each such group is
         associated with one OFDM symbol. In each group, the complex numbers are numbered 0 to 47 and
@@ -120,9 +148,10 @@ def modulate_ofdm(ofdm_symbol: np.ndarray, index_in_package: int) -> np.ndarray:
 
 
 def demodulate_ofdm_factory():
-    pilot_history = deque(maxlen=4) # each symbol has 4 pilots, so 8 is average over 2 symbols
+    pilot_history = deque(maxlen=4)  # each symbol has 4 pilots, so 8 is average over 2 symbols
 
-    def demodulate_ofdm(samples: np.ndarray, equalizer: np.array, index_in_package: int) -> np.ndarray:
+    def demodulate_ofdm(samples: np.ndarray, equalizer: np.ndarray,
+                        index_in_package: int) -> np.ndarray:
         """ Undo the 'modulate_ofdm'
 
         Args:
@@ -133,7 +162,6 @@ def demodulate_ofdm_factory():
             OFDM symbol (48 frequency domain values) and 4 pilot symbols (frequency domain)
 
         """
-
 
         assert len(samples) == 80
         carriers = np.fft.fft(samples[16:80]) * equalizer

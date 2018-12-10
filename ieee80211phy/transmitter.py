@@ -9,6 +9,7 @@ from ieee80211phy.ofdm import modulate_ofdm
 from ieee80211phy.preamble import short_training_sequence, long_training_sequence
 from ieee80211phy.scrambler import scrambler
 from ieee80211phy.signal_field import encode_signal_field
+from ieee80211phy.util import Bits
 
 log = logging.getLogger(__name__)
 
@@ -201,10 +202,11 @@ def transmitter(data, data_rate):
 
 
 def test_annexi():
-    from ieee80211phy.util import flip_byte_endian, hex_to_bitstr
     # Table I-1—The message for the BCC example
-    input = '0x0402002E006008CD37A60020D6013CF1006008AD3BAF00004A6F792C2062726967687420737061726B206F6620646976696E6974792C0A4461756768746572206F6620456C797369756D2C0A466972652D696E73697265642077652074726561673321B6'
-    input = flip_byte_endian(hex_to_bitstr(input))
+    input = '0x0402002E006008CD37A60020D6013CF1006008AD3BAF00004A6F792C2062726967687420737061726B206F6620646976696E' \
+            '6974792C0A4461756768746572206F6620456C797369756D2C0A466972652D696E73697265642077652074726561673321B6'
+
+    output = np.round(transmitter(Bits(input), data_rate=36), 3)
 
     # Table I-22—Time domain representation of the short training sequence
     expect_short_train = [(0.023 + 0.023j), (-0.132 + 0.002j), (-0.013 - 0.079j), (0.143 - 0.013j), (0.092 + 0j),
@@ -406,5 +408,4 @@ def test_annexi():
         [expect_short_train, expect_long_train, expect_signal_field, expected_data1, expected_data2, expected_data3,
          expected_data4, expected_data5, expected_data6])
 
-    output = np.round(transmitter(input, data_rate=36), 3)
     np.testing.assert_equal(output, expected)

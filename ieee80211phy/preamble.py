@@ -172,6 +172,7 @@ def long_training_sequence():
 
     symbol = np.fft.ifft(long_training_symbol())
     full_long_time = np.concatenate([symbol[32:], symbol, symbol])  # two symbols plus 32 samples of GI
+    full_l = np.concatenate([symbol[48:], symbol, symbol[48:], symbol])
     return full_long_time
 
 
