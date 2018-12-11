@@ -1,8 +1,7 @@
 import logging
-from multiprocessing.pool import Pool
 from textwrap import wrap
 import numpy as np
-from numba import jit
+from numba import njit
 
 from ieee80211phy.util import int_to_binstr, xor_reduce_poly
 
@@ -54,111 +53,124 @@ def conv_encode(data, coding_rate='1/2'):
     return _puncture(output, coding_rate)
 
 
-# input_bit, parent1_id, parent1_output, parent2_id, parent2_output
+@njit()
+def trellis_kernel(rx):
+    LUTT = [
+        (0, 0, 1, 3)
+        , (2, 2, 3, 1)
+        , (4, 0, 5, 3)
+        , (6, 2, 7, 1)
+        , (8, 3, 9, 0)
+        , (10, 1, 11, 2)
+        , (12, 3, 13, 0)
+        , (14, 1, 15, 2)
+        , (16, 3, 17, 0)
+        , (18, 1, 19, 2)
+        , (20, 3, 21, 0)
+        , (22, 1, 23, 2)
+        , (24, 0, 25, 3)
+        , (26, 2, 27, 1)
+        , (28, 0, 29, 3)
+        , (30, 2, 31, 1)
+        , (32, 1, 33, 2)
+        , (34, 3, 35, 0)
+        , (36, 1, 37, 2)
+        , (38, 3, 39, 0)
+        , (40, 2, 41, 1)
+        , (42, 0, 43, 3)
+        , (44, 2, 45, 1)
+        , (46, 0, 47, 3)
+        , (48, 2, 49, 1)
+        , (50, 0, 51, 3)
+        , (52, 2, 53, 1)
+        , (54, 0, 55, 3)
+        , (56, 1, 57, 2)
+        , (58, 3, 59, 0)
+        , (60, 1, 61, 2)
+        , (62, 3, 63, 0)
+        , (0, 3, 1, 0)
+        , (2, 1, 3, 2)
+        , (4, 3, 5, 0)
+        , (6, 1, 7, 2)
+        , (8, 0, 9, 3)
+        , (10, 2, 11, 1)
+        , (12, 0, 13, 3)
+        , (14, 2, 15, 1)
+        , (16, 0, 17, 3)
+        , (18, 2, 19, 1)
+        , (20, 0, 21, 3)
+        , (22, 2, 23, 1)
+        , (24, 3, 25, 0)
+        , (26, 1, 27, 2)
+        , (28, 3, 29, 0)
+        , (30, 1, 31, 2)
+        , (32, 2, 33, 1)
+        , (34, 0, 35, 3)
+        , (36, 2, 37, 1)
+        , (38, 0, 39, 3)
+        , (40, 1, 41, 2)
+        , (42, 3, 43, 0)
+        , (44, 1, 45, 2)
+        , (46, 3, 47, 0)
+        , (48, 1, 49, 2)
+        , (50, 3, 51, 0)
+        , (52, 1, 53, 2)
+        , (54, 3, 55, 0)
+        , (56, 2, 57, 1)
+        , (58, 0, 59, 3)
+        , (60, 2, 61, 1)
+        , (62, 0, 63, 3)
+    ]
 
-LUTT = [
-      ('0', 0, 0, 1, 3)
-    , ('0', 2, 2, 3, 1)
-    , ('0', 4, 0, 5, 3)
-    , ('0', 6, 2, 7, 1)
-    , ('0', 8, 3, 9, 0)
-    , ('0', 10, 1, 11, 2)
-    , ('0', 12, 3, 13, 0)
-    , ('0', 14, 1, 15, 2)
-    , ('0', 16, 3, 17, 0)
-    , ('0', 18, 1, 19, 2)
-    , ('0', 20, 3, 21, 0)
-    , ('0', 22, 1, 23, 2)
-    , ('0', 24, 0, 25, 3)
-    , ('0', 26, 2, 27, 1)
-    , ('0', 28, 0, 29, 3)
-    , ('0', 30, 2, 31, 1)
-    , ('0', 32, 1, 33, 2)
-    , ('0', 34, 3, 35, 0)
-    , ('0', 36, 1, 37, 2)
-    , ('0', 38, 3, 39, 0)
-    , ('0', 40, 2, 41, 1)
-    , ('0', 42, 0, 43, 3)
-    , ('0', 44, 2, 45, 1)
-    , ('0', 46, 0, 47, 3)
-    , ('0', 48, 2, 49, 1)
-    , ('0', 50, 0, 51, 3)
-    , ('0', 52, 2, 53, 1)
-    , ('0', 54, 0, 55, 3)
-    , ('0', 56, 1, 57, 2)
-    , ('0', 58, 3, 59, 0)
-    , ('0', 60, 1, 61, 2)
-    , ('0', 62, 3, 63, 0)
-    , ('1', 0, 3, 1, 0)
-    , ('1', 2, 1, 3, 2)
-    , ('1', 4, 3, 5, 0)
-    , ('1', 6, 1, 7, 2)
-    , ('1', 8, 0, 9, 3)
-    , ('1', 10, 2, 11, 1)
-    , ('1', 12, 0, 13, 3)
-    , ('1', 14, 2, 15, 1)
-    , ('1', 16, 0, 17, 3)
-    , ('1', 18, 2, 19, 1)
-    , ('1', 20, 0, 21, 3)
-    , ('1', 22, 2, 23, 1)
-    , ('1', 24, 3, 25, 0)
-    , ('1', 26, 1, 27, 2)
-    , ('1', 28, 3, 29, 0)
-    , ('1', 30, 1, 31, 2)
-    , ('1', 32, 2, 33, 1)
-    , ('1', 34, 0, 35, 3)
-    , ('1', 36, 2, 37, 1)
-    , ('1', 38, 0, 39, 3)
-    , ('1', 40, 1, 41, 2)
-    , ('1', 42, 3, 43, 0)
-    , ('1', 44, 1, 45, 2)
-    , ('1', 46, 3, 47, 0)
-    , ('1', 48, 1, 49, 2)
-    , ('1', 50, 3, 51, 0)
-    , ('1', 52, 1, 53, 2)
-    , ('1', 54, 3, 55, 0)
-    , ('1', 56, 2, 57, 1)
-    , ('1', 58, 0, 59, 3)
-    , ('1', 60, 2, 61, 1)
-    , ('1', 62, 0, 63, 3)
-]
+    ERR_LUT = [[0, 1, 1, 2, 0, 1, 0, 1],
+               [1, 0, 2, 1, 0, 1, 1, 0],
+               [1, 2, 0, 1, 1, 0, 0, 1],
+               [2, 1, 1, 0, 1, 0, 1, 0]]
 
-ERR_LUT = [[0, 1, 1, 2, 0, 1, 0, 1],
-           [1, 0, 2, 1, 0, 1, 1, 0],
-           [1, 2, 0, 1, 1, 0, 0, 1],
-           [2, 1, 1, 0, 1, 0, 1, 0]]
+    trellis = np.zeros(shape=(len(rx) + 1, 64, 2), dtype=np.int64)
+    trellis[0, 1:, 0] = 1000  # set high cost for all starting nodes except the first one
+
+    for i, expected in enumerate(rx):
+        for j in range(64):
+            parent1, parent1_out, parent2, parent2_out = LUTT[j]
+
+            parent1_score = trellis[i][parent1][0] + ERR_LUT[parent1_out][expected]
+            parent2_score = trellis[i][parent2][0] + ERR_LUT[parent2_out][expected]
+            if parent1_score < parent2_score:
+                trellis[i + 1][j][0] = parent1_score
+                trellis[i + 1][j][1] = parent1
+            else:
+                trellis[i + 1][j][0] = parent2_score
+                trellis[i + 1][j][1] = parent2
+
+    # backtracks, basically like traversing the linked list
+    best_score = np.min(trellis[-1, :, 0])
+    best_score_index = np.argmin(trellis[-1, :, 0])
+    bits = np.zeros(shape=(len(rx)), dtype=np.int64)
+    for i in range(len(trellis) - 1, 0, -1):
+        next = trellis[i][best_score_index][1]
+        if next > best_score_index or (next == 0 and best_score_index == 0):
+            bits[i - 1] = 0
+        else:
+            bits[i - 1] = 1
+        best_score_index = next
+
+    return bits, best_score
 
 
-
-
-# @profile
 def conv_decode(rx, coding_rate='1/2'):
     """ See 'Bits, Signals, and Packets: An Introduction to Digital Communications and Networks' ->
         'Viterbi Decoding of Convolutional Codes (PDF - 1.4MB)'
+
     """
 
-    def butterfly(state, expected, scores):
-        input_bit, parent1, parent1_out, parent2, parent2_out = LUTT[state]
-
-        parent1_score = scores[parent1][0] + ERR_LUT[parent1_out][expected]
-        parent2_score = scores[parent2][0] + ERR_LUT[parent2_out][expected]
-
-        if parent1_score < parent2_score:
-            return parent1_score, scores[parent1][1] + input_bit
-        else:
-            return parent2_score, scores[parent2][1] + input_bit
-
     rx = _puncture(rx, coding_rate, undo=True)
-    symbols = ['00', '01', '10', '11', '0X', '1X', 'X0', 'X1']
-    rx = [symbols.index(sym) for sym in wrap(rx, 2)]
+    symbol_map = {'00': 0, '01': 1, '10': 2, '11': 3, '0X': 4, '1X': 5, 'X0': 6, 'X1': 7}
+    rx = [symbol_map[symbol] for symbol in wrap(rx, 2)]
 
-    scores = [(0, '')] + ([(1000, '')] * (STATES - 1))  # (state score, decoded bits)
-    for expect in rx:
-        scores = [butterfly(i, expect, scores) for i in range(len(scores))]
-
-    min_score_index = int(np.argmin([x[0] for x in scores]))
-    bits = scores[min_score_index][1]
-    logger.info(f'Decoded {len(bits)} bits, score={scores[min_score_index][0]}, rate={coding_rate}')
+    bits, error_score = trellis_kernel(rx)
+    bits = ''.join(str(x) for x in bits)
+    logger.info(f'Decoded {len(bits)} bits, error_score={error_score}, rate={coding_rate}')
     return bits
 
 
