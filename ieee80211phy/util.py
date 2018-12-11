@@ -29,7 +29,6 @@ def default_iee80211_package():
     from ieee80211phy.transmitter import transmitter
     return input, transmitter(Bits(input), data_rate=36)
 
-
 def bit_error_rate(snr):
     from ieee80211phy.receiver import receiver
     bits, iq = default_iee80211_package()
@@ -43,7 +42,7 @@ def bit_error_rate(snr):
         diff = len([True for x, y in zip(bits, res.bits) if x != y])
         return diff / len(bits)
 
-    diffs = [one(iq) for _ in range(64)]
+    diffs = [one(iq) for _ in range(16)]
 
     return np.mean(diffs)
 

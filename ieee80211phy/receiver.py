@@ -63,7 +63,6 @@ class Packet:
     data_symbols: Tuple[np.ndarray, int]
     bits: str
 
-
 def receiver(iq):
     """ Channel estimation - calculate how much the known symbols have changed and produce inverse channel """
     avg_train = (iq[:64] + iq[64:128]) / 2
