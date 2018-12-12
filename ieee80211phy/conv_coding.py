@@ -53,6 +53,9 @@ def conv_encode(data, coding_rate='1/2'):
     return _puncture(output, coding_rate)
 
 
+a = 0b1010
+
+
 @njit()
 def trellis_kernel(rx):
     LUTT = [
@@ -127,15 +130,18 @@ def trellis_kernel(rx):
                [1, 2, 0, 1, 1, 0, 0, 1],
                [2, 1, 1, 0, 1, 0, 1, 0]]
 
-    trellis = np.zeros(shape=(len(rx) + 1, 64, 2), dtype=np.int64)
+    # compute the whole trellis map
+    trellis = np.empty(shape=(len(rx) + 1, 64, 2), dtype=np.int64)
+    trellis[0][0][0] = 0 # 0 cost for the first node
     trellis[0, 1:, 0] = 1000  # set high cost for all starting nodes except the first one
 
     for i, expected in enumerate(rx):
-        for j in range(64):
+        for j in range(STATES):
             parent1, parent1_out, parent2, parent2_out = LUTT[j]
 
             parent1_score = trellis[i][parent1][0] + ERR_LUT[parent1_out][expected]
             parent2_score = trellis[i][parent2][0] + ERR_LUT[parent2_out][expected]
+
             if parent1_score < parent2_score:
                 trellis[i + 1][j][0] = parent1_score
                 trellis[i + 1][j][1] = parent1
@@ -143,7 +149,7 @@ def trellis_kernel(rx):
                 trellis[i + 1][j][0] = parent2_score
                 trellis[i + 1][j][1] = parent2
 
-    # backtracks, basically like traversing the linked list
+    # at this point we know the solution, but need to extract it by following the best node backwards (i.e. traversing as linked list)
     best_score = np.min(trellis[-1, :, 0])
     best_score_index = np.argmin(trellis[-1, :, 0])
     bits = np.zeros(shape=(len(rx)), dtype=np.int64)
@@ -170,7 +176,7 @@ def conv_decode(rx, coding_rate='1/2'):
 
     bits, error_score = trellis_kernel(rx)
     bits = ''.join(str(x) for x in bits)
-    logger.info(f'Decoded {len(bits)} bits, error_score={error_score}, rate={coding_rate}')
+    logger.info(f'Decoded {len(bits)} bits, error_score={int(error_score)}, rate={coding_rate}')
     return bits
 
 
