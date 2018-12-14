@@ -5,37 +5,37 @@ and bit 7 last.
 """
 
 
-# def scrambler(data_bits: str) -> str:
-#     output = ''
-#     shr = '1011101'
-#     for bit in data_bits:
-#         feedback = int(shr[3]) ^ int(shr[6])
-#         shr = str(feedback) + shr[:-1]
-#         output += str(int(bit) ^ feedback)
-#     return output
-
-
-class bits(str):
-    def __new__(cls, val: str):
-        if val[0:2] in ('0x', '0X'):
-            val = val[2:]
-            num_of_bits = int(len(val) * np.log2(16))
-            val = int_to_binstr(int(val, 16), num_of_bits)
-            val = flip_byte_endian(val)  # IEE802.11 examples need this?!, tho it is confusing
-
-        return str.__new__(cls, val)
-
-    def __getitem__(self, item):
-        return bits(self[item])
-
-def scrambler(data: bits) -> bits:
-    output = bits('')
-    shr = bits('1011101')
-    for bit in data:
-        feedback = shr[3] ^ shr[6]
-        shr = feedback + shr[:-1]
-        output += bit ^ feedback
+def scrambler(data_bits: str) -> str:
+    output = ''
+    shr = '1011101'
+    for bit in data_bits:
+        feedback = int(shr[3]) ^ int(shr[6])
+        shr = str(feedback) + shr[:-1]
+        output += str(int(bit) ^ feedback)
     return output
+
+
+# class bits(str):
+#     def __new__(cls, val: str):
+#         if val[0:2] in ('0x', '0X'):
+#             val = val[2:]
+#             num_of_bits = int(len(val) * np.log2(16))
+#             val = int_to_binstr(int(val, 16), num_of_bits)
+#             val = flip_byte_endian(val)  # IEE802.11 examples need this?!, tho it is confusing
+#
+#         return str.__new__(cls, val)
+#
+#     def __getitem__(self, item):
+#         return bits(self[item])
+#
+# def scrambler(data: bits) -> bits:
+#     output = bits('')
+#     shr = bits('1011101')
+#     for bit in data:
+#         feedback = shr[3] ^ shr[6]
+#         shr = feedback + shr[:-1]
+#         output += bit ^ feedback
+#     return output
 
 
 def descramble(scrambled_bits: str) -> str:

@@ -1,5 +1,4 @@
 import logging
-from textwrap import wrap
 import numpy as np
 from numba import njit
 
@@ -17,28 +16,8 @@ G1 = int('171', 8)
 OUTPUT_LUT = [(xor_reduce_poly(x, G0) << 1) | xor_reduce_poly(x, G1) for x in range(2 ** K)]
 
 
-def _puncture(data, rate, undo=False):
-    """
-    Puncturing is a procedure for omitting some of the encoded bits in the transmitter
-    (thus reducing the number of transmitted bits and increasing the coding rate)
-    and inserting a dummy “zero” metric into the convolutional decoder on the
-    receive side in place of the omitted bits. The puncturing patterns are illustrated in Figure 17-9.
-    """
-
-    if undo:
-        # un-puncturing process i.e. add 'X' characters that are ignored by the error calculation
-        if rate == '3/4':
-            data = [d[:3] + 'XX' + d[3] for d in wrap(data, 4)]
-        elif rate == '2/3':
-            data = [d + 'X' for d in wrap(data, 3)]
-    else:
-        if rate == '2/3':
-            # throw out ech 3. bit in a block of 4
-            data = [bit for i, bit in enumerate(data) if (i % 4) != 3]
-        elif rate == '3/4':
-            # throw out each 3. and 4. bit in a block of 6 bits
-            data = [bit for i, bit in enumerate(data) if (i % 6) != 3 and (i % 6) != 4]
-    return ''.join(data)
+def split(data, n):
+    return [data[i:i + n] for i in range(0, len(data), n)]
 
 
 def conv_encode(data, coding_rate='1/2'):
@@ -50,97 +29,70 @@ def conv_encode(data, coding_rate='1/2'):
         output += int_to_binstr(OUTPUT_LUT[int(i, 2)], bits=2)
         shr = i[:-1]  # advance the shift register
 
-    return _puncture(output, coding_rate)
+    """
+    Puncturing is a procedure for omitting some of the encoded bits in the transmitter
+    (thus reducing the number of transmitted bits and increasing the coding rate)
+    and inserting a dummy “zero” metric into the convolutional decoder on the
+    receive side in place of the omitted bits. The puncturing patterns are illustrated in Figure 17-9.
+    """
+    if coding_rate == '2/3':
+        # throw out each 3. bit in a block of 4
+        output = [bit for i, bit in enumerate(output) if (i % 4) != 3]
+    elif coding_rate == '3/4':
+        # throw out each 3. and 4. bit in a block of 6 bits
+        output = [bit for i, bit in enumerate(output) if (i % 6) != 3 and (i % 6) != 4]
 
-
-a = 0b1010
+    return ''.join(output)
 
 
 @njit()
 def trellis_kernel(rx):
-    LUTT = [
-        (0, 0, 1, 3)
-        , (2, 2, 3, 1)
-        , (4, 0, 5, 3)
-        , (6, 2, 7, 1)
-        , (8, 3, 9, 0)
-        , (10, 1, 11, 2)
-        , (12, 3, 13, 0)
-        , (14, 1, 15, 2)
-        , (16, 3, 17, 0)
-        , (18, 1, 19, 2)
-        , (20, 3, 21, 0)
-        , (22, 1, 23, 2)
-        , (24, 0, 25, 3)
-        , (26, 2, 27, 1)
-        , (28, 0, 29, 3)
-        , (30, 2, 31, 1)
-        , (32, 1, 33, 2)
-        , (34, 3, 35, 0)
-        , (36, 1, 37, 2)
-        , (38, 3, 39, 0)
-        , (40, 2, 41, 1)
-        , (42, 0, 43, 3)
-        , (44, 2, 45, 1)
-        , (46, 0, 47, 3)
-        , (48, 2, 49, 1)
-        , (50, 0, 51, 3)
-        , (52, 2, 53, 1)
-        , (54, 0, 55, 3)
-        , (56, 1, 57, 2)
-        , (58, 3, 59, 0)
-        , (60, 1, 61, 2)
-        , (62, 3, 63, 0)
-        , (0, 3, 1, 0)
-        , (2, 1, 3, 2)
-        , (4, 3, 5, 0)
-        , (6, 1, 7, 2)
-        , (8, 0, 9, 3)
-        , (10, 2, 11, 1)
-        , (12, 0, 13, 3)
-        , (14, 2, 15, 1)
-        , (16, 0, 17, 3)
-        , (18, 2, 19, 1)
-        , (20, 0, 21, 3)
-        , (22, 2, 23, 1)
-        , (24, 3, 25, 0)
-        , (26, 1, 27, 2)
-        , (28, 3, 29, 0)
-        , (30, 1, 31, 2)
-        , (32, 2, 33, 1)
-        , (34, 0, 35, 3)
-        , (36, 2, 37, 1)
-        , (38, 0, 39, 3)
-        , (40, 1, 41, 2)
-        , (42, 3, 43, 0)
-        , (44, 1, 45, 2)
-        , (46, 3, 47, 0)
-        , (48, 1, 49, 2)
-        , (50, 3, 51, 0)
-        , (52, 1, 53, 2)
-        , (54, 3, 55, 0)
-        , (56, 2, 57, 1)
-        , (58, 0, 59, 3)
-        , (60, 2, 61, 1)
-        , (62, 0, 63, 3)
-    ]
+    """
+    Each node in the trellis has 2 static parents (inputs from previous stage), also outputs are static. This LUT
+    provides the parent IDs and the output values. Format: (parent1 id, parent1 output, parent2_id, parent2_output)
 
-    ERR_LUT = [[0, 1, 1, 2, 0, 1, 0, 1],
-               [1, 0, 2, 1, 0, 1, 1, 0],
-               [1, 2, 0, 1, 1, 0, 0, 1],
-               [2, 1, 1, 0, 1, 0, 1, 0]]
+    For example, consider the data for the 4. trellis node:
+        BUTTERFLY_LUT[4] -> (6, 2, 7, 1)
+        Meaning, the first parent is trellis node 6 with state output of 2, and the second parent is node 7 with output 1.
+
+    """
+    BUTTERFLY_LUT = [(0, 0, 1, 3), (2, 2, 3, 1), (4, 0, 5, 3), (6, 2, 7, 1),
+                     (8, 3, 9, 0), (10, 1, 11, 2), (12, 3, 13, 0), (14, 1, 15, 2),
+                     (16, 3, 17, 0), (18, 1, 19, 2), (20, 3, 21, 0), (22, 1, 23, 2),
+                     (24, 0, 25, 3), (26, 2, 27, 1), (28, 0, 29, 3), (30, 2, 31, 1),
+                     (32, 1, 33, 2), (34, 3, 35, 0), (36, 1, 37, 2), (38, 3, 39, 0),
+                     (40, 2, 41, 1), (42, 0, 43, 3), (44, 2, 45, 1), (46, 0, 47, 3),
+                     (48, 2, 49, 1), (50, 0, 51, 3), (52, 2, 53, 1), (54, 0, 55, 3),
+                     (56, 1, 57, 2), (58, 3, 59, 0), (60, 1, 61, 2), (62, 3, 63, 0),
+                     (0, 3, 1, 0), (2, 1, 3, 2), (4, 3, 5, 0), (6, 1, 7, 2),
+                     (8, 0, 9, 3), (10, 2, 11, 1), (12, 0, 13, 3), (14, 2, 15, 1),
+                     (16, 0, 17, 3), (18, 2, 19, 1), (20, 0, 21, 3), (22, 2, 23, 1),
+                     (24, 3, 25, 0), (26, 1, 27, 2), (28, 3, 29, 0), (30, 1, 31, 2),
+                     (32, 2, 33, 1), (34, 0, 35, 3), (36, 2, 37, 1), (38, 0, 39, 3),
+                     (40, 1, 41, 2), (42, 3, 43, 0), (44, 1, 45, 2), (46, 3, 47, 0),
+                     (48, 1, 49, 2), (50, 3, 51, 0), (52, 1, 53, 2), (54, 3, 55, 0),
+                     (56, 2, 57, 1), (58, 0, 59, 3), (60, 2, 61, 1), (62, 0, 63, 3)]
+
+    """ Error between parent output and actual_input 
+    error = ERROR_LUT[parent][actual_input]
+    Actual input may contain depunctured stuff.
+    """
+    ERROR_LUT = [[0, 1, 1, 2, 0, 1, 0, 1],
+                 [1, 0, 2, 1, 0, 1, 1, 0],
+                 [1, 2, 0, 1, 1, 0, 0, 1],
+                 [2, 1, 1, 0, 1, 0, 1, 0]]
 
     # compute the whole trellis map
     trellis = np.empty(shape=(len(rx) + 1, 64, 2), dtype=np.int64)
-    trellis[0][0][0] = 0 # 0 cost for the first node
+    trellis[0][0][0] = 0  # cost for the first node
     trellis[0, 1:, 0] = 1000  # set high cost for all starting nodes except the first one
 
-    for i, expected in enumerate(rx):
+    for i, actual_input in enumerate(rx):
         for j in range(STATES):
-            parent1, parent1_out, parent2, parent2_out = LUTT[j]
+            parent1, parent1_out, parent2, parent2_out = BUTTERFLY_LUT[j]
 
-            parent1_score = trellis[i][parent1][0] + ERR_LUT[parent1_out][expected]
-            parent2_score = trellis[i][parent2][0] + ERR_LUT[parent2_out][expected]
+            parent1_score = trellis[i][parent1][0] + ERROR_LUT[parent1_out][actual_input]
+            parent2_score = trellis[i][parent2][0] + ERROR_LUT[parent2_out][actual_input]
 
             if parent1_score < parent2_score:
                 trellis[i + 1][j][0] = parent1_score
@@ -164,17 +116,64 @@ def trellis_kernel(rx):
     return bits, best_score
 
 
-def conv_decode(rx, coding_rate='1/2'):
+def conv_decode(data, coding_rate='1/2'):
     """ See 'Bits, Signals, and Packets: An Introduction to Digital Communications and Networks' ->
         'Viterbi Decoding of Convolutional Codes (PDF - 1.4MB)'
-
     """
 
-    rx = _puncture(rx, coding_rate, undo=True)
-    symbol_map = {'00': 0, '01': 1, '10': 2, '11': 3, '0X': 4, '1X': 5, 'X0': 6, 'X1': 7}
-    rx = [symbol_map[symbol] for symbol in wrap(rx, 2)]
+    """ Step 1
+    Depuncture the datastream i.e. add 'X' bits where bits where punctured in transmitter, these bits will be ignored.
+    """
+    if coding_rate == '1/2':
+        # no puncturing, each 2 bits can be directly converted to integer representation
+        LUT = {
+            '00': 0,
+            '01': 1,
+            '10': 2,
+            '11': 3
+        }
+        split_size = 2
+    elif coding_rate == '2/3':
+        # need to get 2 "2-bit" values out of 3 bits (1 bit were punctured)
+        LUT = {
+            '000': [0, 4],
+            '001': [0, 5],
+            '010': [1, 4],
+            '011': [1, 5],
+            '100': [2, 4],
+            '101': [2, 5],
+            '110': [3, 4],
+            '111': [3, 5],
+        }
+        split_size = 3
+    elif coding_rate == '3/4':
+        # need to get 3 "2-bit" values out of 4 bits (2 bits were punctured)
+        LUT = {
+            '0000': [0, 4, 6],
+            '0001': [0, 4, 7],
+            '0010': [0, 5, 6],
+            '0011': [0, 5, 7],
+            '0100': [1, 4, 6],
+            '0101': [1, 4, 7],
+            '0110': [1, 5, 6],
+            '0111': [1, 5, 7],
+            '1000': [2, 4, 6],
+            '1001': [2, 4, 7],
+            '1010': [2, 5, 6],
+            '1011': [2, 5, 7],
+            '1100': [3, 4, 6],
+            '1101': [3, 4, 7],
+            '1110': [3, 5, 6],
+            '1111': [3, 5, 7],
+        }
+        split_size = 4
+    else:
+        assert 0
 
-    bits, error_score = trellis_kernel(rx)
+    data = np.array([LUT[group] for group in split(data, split_size)]).flatten()
+
+    # Step 3. Execute the decoder and profit
+    bits, error_score = trellis_kernel(data)
     bits = ''.join(str(x) for x in bits)
     logger.info(f'Decoded {len(bits)} bits, error_score={int(error_score)}, rate={coding_rate}')
     return bits
