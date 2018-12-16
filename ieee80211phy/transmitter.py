@@ -2,13 +2,12 @@ import logging
 from textwrap import wrap
 import numpy as np
 
-from ieee80211phy.conv_coding import conv_encode
-from ieee80211phy.interleaving import interleave
+from ieee80211phy import convolutional_coding, signal_field
+from ieee80211phy.interleaving import apply
 from ieee80211phy.modulation import bits_to_symbols
 from ieee80211phy.ofdm import modulate_ofdm
 from ieee80211phy.preamble import short_training_sequence, long_training_sequence
 from ieee80211phy.scrambler import scrambler
-from ieee80211phy.signal_field import encode_signal_field
 from ieee80211phy.util import Bits
 
 log = logging.getLogger(__name__)
@@ -78,9 +77,9 @@ def transmitter(data, data_rate):
     contents of the SIGNAL field are not scrambled. Refer to 17.3.4 for details.
     """
     n_bytes = len(wrap(data, 8))
-    signal = encode_signal_field(data_rate, length_bytes=n_bytes)
-    signal = conv_encode(signal, '1/2')
-    signal = interleave(signal, coded_bits_symbol=48, coded_bits_subcarrier=1)
+    signal = signal_field.encode(data_rate, length_bytes=n_bytes)
+    signal = convolutional_coding.encode(signal, '1/2')
+    signal = apply(signal, coded_bits_symbol=48, coded_bits_subcarrier=1)
     signal = bits_to_symbols(signal, bits_per_symbol=1)
     signal = modulate_ofdm(signal, index_in_package=0)
 
@@ -138,15 +137,15 @@ def transmitter(data, data_rate):
     some of the encoder output string (chosen according to “puncturing pattern”) to reach the “coding
     rate” corresponding to the TXVECTOR parameter RATE. Refer to 17.3.5.6 for details.
     """
-    data = conv_encode(data, coding_rate)
+    data = convolutional_coding.encode(data, coding_rate)
 
     """
     h) Divide the encoded bit string into groups of 'coded_bits_symbol' bits. Within each group, perform an
     “interleaving” (reordering) of the bits according to a rule corresponding to the TXVECTOR
     parameter RATE. Refer to 17.3.5.7 for details.
     """
-    interleaved = [interleave(bit_group, coded_bits_symbol, coded_bits_subcarrier)
-                          for bit_group in wrap(data, coded_bits_symbol)]
+    interleaved = [apply(bit_group, coded_bits_symbol, coded_bits_subcarrier)
+                   for bit_group in wrap(data, coded_bits_symbol)]
     data = ''.join(interleaved)
 
     """

@@ -25,7 +25,7 @@ RATE_LUT = {6: '1101',
             54: '0011'}
 
 
-def encode_signal_field(data_rate: int, length_bytes: int) -> str:
+def encode(data_rate: int, length_bytes: int) -> str:
     """
     17.3.4 SIGNAL field - IEEE Std 802.11-2016
 
@@ -59,7 +59,7 @@ def encode_signal_field(data_rate: int, length_bytes: int) -> str:
     return signal
 
 
-def decode_signal_field(bits: str) -> Tuple[int, int]:
+def decode(bits: str) -> Tuple[int, int]:
     parity = str(bits[:17].count('1') & 1)
     assert parity == bits[17]
 
@@ -77,10 +77,10 @@ def test_signal_field():
     expect = '101100010011000000000000'
     data_rate = 36
     length_bytes = 100
-    output = encode_signal_field(data_rate, length_bytes)
+    output = encode(data_rate, length_bytes)
     assert output == expect
 
     # test decode
-    dec_data_rate, dec_length_bytes = decode_signal_field(output)
+    dec_data_rate, dec_length_bytes = decode(output)
     assert dec_data_rate == data_rate
     assert dec_length_bytes == length_bytes

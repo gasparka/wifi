@@ -6,18 +6,19 @@ All encoded data bits shall be interleaved by a block interleaver with a block s
 number of bits in a single OFDM symbol. The interleaver is defined by a two-step permutation.
 
 """
-
+from typing import List
 import numpy as np
+from ieee80211phy.bits import bits
 
 
-def first_permutation_table(coded_bits_symbol):
+def first_permute(coded_bits_symbol: int) -> List[int]:
     """ The first permutation causes adjacent coded bits to be mapped onto nonadjacent subcarriers. """
     lut = [int((coded_bits_symbol / 16) * (k % 16) + np.floor(k / 16))
            for k in range(coded_bits_symbol)]
     return lut
 
 
-def second_permutation_table(coded_bits_symbol, coded_bits_subcarrier):
+def second_permute(coded_bits_symbol: int, coded_bits_subcarrier: int) -> List[int]:
     """ The second permutation causes adjacent coded bits to be mapped alternately onto less and more significant bits of the
     constellation and, thereby, long runs of low reliability (LSB) bits are avoided. """
 
@@ -27,36 +28,40 @@ def second_permutation_table(coded_bits_symbol, coded_bits_subcarrier):
     return lut
 
 
-def interleave(data, coded_bits_symbol, coded_bits_subcarrier, undo=False):
+def inverse_permute(x: List[int]) -> List[int]:
+    result = np.array(x)
+    result[x] = np.arange(0, len(result))
+    return result.tolist()
+
+
+def apply(data: bits, coded_bits_symbol: int, coded_bits_subcarrier: int) -> bits:
     """
     Divide the encoded bit string into groups of NCBPS bits. Within each group, perform an
     “interleaving” (reordering) of the bits according to a rule corresponding to the TXVECTOR
     parameter RATE. Refer to 17.3.5.7 for details.
     """
 
-    def apply_permutation(data, table):
-        result = ['0'] * len(data)
-        for i in range(len(data)):
-            result[table[i]] = data[i]
-        return ''.join(result)
+    table = first_permute(coded_bits_symbol)
+    table = inverse_permute(table)
+    first_result = data[table]
 
-    def invert_table(table):
-        result = np.array(table)
-        result[table] = np.arange(0, len(result))
-        return result
+    table = second_permute(coded_bits_symbol, coded_bits_subcarrier)
+    table = inverse_permute(table)
+    second_result = first_result[table]
+    return second_result
 
-    first_table = first_permutation_table(coded_bits_symbol)
-    second_table = second_permutation_table(coded_bits_symbol, coded_bits_subcarrier)
-    if undo:
-        # invert and SWAP tables
-        second_table, first_table = invert_table(first_table), invert_table(second_table)
 
-    data = apply_permutation(apply_permutation(data, first_table), second_table)
-    return data
+def undo(data: bits, coded_bits_symbol: int, coded_bits_subcarrier: int) -> bits:
+    table = second_permute(coded_bits_symbol, coded_bits_subcarrier)
+    first_result = data[table]
+
+    table = first_permute(coded_bits_symbol)
+    second_result = first_result[table]
+    return second_result
 
 
 def test_first_permutation_table():
-    result = first_permutation_table(192)
+    result = first_permute(192)
 
     # IEEE Std 802.11-2016: Table I-17—First permutation
     expect = [0, 12, 24, 36, 48, 60, 72, 84, 96, 108, 120, 132, 144, 156, 168, 180, 1, 13, 25, 37, 49, 61, 73, 85, 97,
@@ -72,7 +77,7 @@ def test_first_permutation_table():
 
 
 def test_second_permutation_table():
-    result = second_permutation_table(192, 4)
+    result = second_permute(192, 4)
 
     # IEEE Std 802.11-2016: Table I-18—Second permutation
     expect = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 12, 15, 14, 17, 16, 19, 18, 21, 20, 23, 22, 24, 25, 26, 27, 28,
@@ -89,32 +94,32 @@ def test_second_permutation_table():
 
 def test_i143():
     # IEEE Std 802.11-2016: Table I-8—SIGNAL field bits after encoding
-    input = '110100011010000100000010001111100111000000000000'
+    input = bits('110100011010000100000010001111100111000000000000')
 
     # IEEE Std 802.11-2016: Table I-9—SIGNAL field bits after interleaving
-    expect = '100101001101000000010100100000110010010010010100'
-    result = interleave(input, 48, 1)
+    expect = bits('100101001101000000010100100000110010010010010100')
+    result = apply(input, 48, 1)
     assert result == expect
 
     # test reverse
-    result = interleave(expect, 48, 1, undo=True)
+    result = undo(expect, 48, 1)
     assert result == input
 
 
 def test_i162():
     # IEEE Std 802.11-2016: Table I-16—The BCC encoded DATA bits
-    input = '0010101100001000101000011111000010011101101101011001101000011101010010101111101111101000' \
-            '1100001010001111110000001100100001110011110000000100001111100000000110011110000011010011' \
-            '1110101110110010'
+    input = bits('001010110000100010100001111100001001110110110101100110100001110101001010111110111110'
+                 '100011000010100011111100000011001000011100111100000001000011111000000001100111100000'
+                 '110100111110101110110010')
 
     # IEEE Std 802.11-2016: Table I-19—Interleaved bits of first DATA symbol
-    expect = '011101111111000011101111110001000111001100000000101111110001000100010000100110100001110' \
-             '1000100100110111000111000111101010110100100011011011010111001100001000011000000000000110' \
-             '11011001101101101'
+    expect = bits('011101111111000011101111110001000111001100000000101111110001000100010000100110100001110'
+                  '1000100100110111000111000111101010110100100011011011010111001100001000011000000000000110'
+                  '11011001101101101')
 
-    result = interleave(input, 192, 4)
+    result = apply(input, 192, 4)
     assert result == expect
 
     # test reverse
-    result = interleave(expect, 192, 4, undo=True)
+    result = undo(expect, 192, 4)
     assert result == input
