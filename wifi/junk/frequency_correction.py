@@ -1,4 +1,4 @@
-from ieee80211phy.util import moving_average, mixer
+from wifi.util import moving_average, mixer
 import numpy as np
 import matplotlib.pyplot as plt
 

@@ -10,7 +10,7 @@ The purpose of the normalization factor is to achieve the same average power for
 """
 import numpy as np
 from textwrap import wrap
-from ieee80211phy.util import int_to_binstr
+from wifi.util import int_to_binstr
 
 BPSK_LUT = np.array([-1 + 0j, 1 + 0j])
 

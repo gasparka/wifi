@@ -2,7 +2,7 @@ import logging
 import numpy as np
 from numba import njit
 
-from ieee80211phy.util import int_to_binstr, xor_reduce_poly
+from wifi.util import int_to_binstr, xor_reduce_poly
 
 logger = logging.getLogger(__name__)
 

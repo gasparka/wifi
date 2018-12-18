@@ -46,12 +46,12 @@ def default_iee80211_package():
                  '6976696E6974792C0A4461756768746572206F6620456C797369756D2C0A466972652D696E73697265642077652074'
                  '726561673321B6')
 
-    from ieee80211phy.transmitter import transmitter
+    from wifi.transmitter import transmitter
     return input, transmitter(Bits(input), data_rate=24)
 
 
 def bit_error_rate(snr):
-    from ieee80211phy.receiver import receiver
+    from wifi.receiver import receiver
     bits, iq = default_iee80211_package()
 
     def one(iq):
@@ -167,7 +167,7 @@ def evm_db(rx, reference):
 
 
 def evm_db2(rx, bits_per_symbol):
-    from ieee80211phy.modulation import symbols_error
+    from wifi.modulation import symbols_error
     rx = np.array(rx).flatten()
     error = symbols_error(rx, bits_per_symbol)
     error_power = np.mean([power(e) for e in error])

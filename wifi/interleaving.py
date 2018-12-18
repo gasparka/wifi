@@ -8,7 +8,7 @@ number of bits in a single OFDM symbol. The interleaver is defined by a two-step
 """
 from typing import List
 import numpy as np
-from ieee80211phy.bits import bits
+from wifi.bits import bits
 
 
 def first_permute(coded_bits_symbol: int) -> List[int]:

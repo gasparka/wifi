@@ -2,13 +2,13 @@ import logging
 from textwrap import wrap
 import numpy as np
 
-from ieee80211phy import convolutional_coding, signal_field
-from ieee80211phy.interleaving import apply
-from ieee80211phy.modulation import bits_to_symbols
-from ieee80211phy.ofdm import modulate_ofdm
-from ieee80211phy.preamble import short_training_sequence, long_training_sequence
-from ieee80211phy.scrambler import scrambler
-from ieee80211phy.util import Bits
+from wifi import convolutional_coding, signal_field
+from wifi.interleaving import apply
+from wifi.modulation import bits_to_symbols
+from wifi.ofdm import modulate_ofdm
+from wifi.preamble import short_training_sequence, long_training_sequence
+from wifi.scrambler import scrambler
+from wifi.util import Bits
 
 log = logging.getLogger(__name__)
 

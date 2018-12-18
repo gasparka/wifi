@@ -1,6 +1,6 @@
 from typing import Tuple
 
-from ieee80211phy.util import int_to_binstr, reverse
+from wifi.util import int_to_binstr, reverse
 
 """
 Data rate to bits:

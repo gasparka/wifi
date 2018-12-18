@@ -1,5 +1,5 @@
 # from ieee80211phy.receiver import packet_detector, receiver
-from ieee80211phy.util import bit_error_rate
+from wifi.util import bit_error_rate
 import numpy as np
 # r = bit_error_rate(25)
 

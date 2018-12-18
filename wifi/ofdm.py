@@ -236,7 +236,7 @@ def test_ofdm_i18():
     # IEEE Std 802.11-2016 - Table I-19—Interleaved bits of first DATA symbol
     input = '0111011111110000111011111100010001110011000000001011111100010001000100001001101000011101000100100110111' \
             '00011100011110101011010010001101101101011100110000100001100000000000011011011001101101101 '
-    from ieee80211phy.modulation import bits_to_symbols
+    from wifi.modulation import bits_to_symbols
     input_ofdm_symbol = bits_to_symbols(input, bits_per_symbol=4)
     output = modulate_ofdm(input_ofdm_symbol, index_in_package=1)
 

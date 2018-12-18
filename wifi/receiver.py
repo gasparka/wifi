@@ -5,14 +5,14 @@ from typing import Tuple
 import numpy as np
 import pytest
 
-from ieee80211phy import scrambler, convolutional_coding, signal_field
-from ieee80211phy.interleaving import apply
-from ieee80211phy.modulation import symbols_to_bits
-from ieee80211phy.ofdm import demodulate_ofdm_factory
-from ieee80211phy.preamble import long_training_symbol
-from ieee80211phy.scrambler import scrambler
-from ieee80211phy.transmitter import get_params_from_rate, transmitter
-from ieee80211phy.util import moving_average, hex_to_bitstr, awgn, evm_db2
+from wifi import scrambler, convolutional_coding, signal_field
+from wifi.interleaving import apply
+from wifi.modulation import symbols_to_bits
+from wifi.ofdm import demodulate_ofdm_factory
+from wifi.preamble import long_training_symbol
+from wifi.scrambler import scrambler
+from wifi.transmitter import get_params_from_rate, transmitter
+from wifi.util import moving_average, hex_to_bitstr, awgn, evm_db2
 
 logger = logging.getLogger(__name__)
 Trace = {}
