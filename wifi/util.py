@@ -85,10 +85,6 @@ def flip_byte_endian(bitstr):
     return ''.join(flipped)
 
 
-def int_to_binstr(x, bits):
-    return bin(x)[2:].zfill(bits)  # [2:] skips the '0b' string
-
-
 def reverse(x: str):
     return x[::-1]
 

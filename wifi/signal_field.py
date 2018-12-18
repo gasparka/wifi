@@ -1,5 +1,6 @@
 from typing import Tuple
 
+from wifi.bits import bits
 from wifi.util import int_to_binstr, reverse
 
 """
@@ -15,17 +16,17 @@ Data rate to bits:
 | 0001   | 48                           |
 | 0011   | 54                           |
 """
-RATE_LUT = {6: '1101',
-            9: '1111',
-            12: '0101',
-            18: '0111',
-            24: '1001',
-            36: '1011',
-            48: '0001',
-            54: '0011'}
+RATE_LUT = {6: bits('1101'),
+            9: bits('1111'),
+            12: bits('0101'),
+            18: bits('0111'),
+            24: bits('1001'),
+            36: bits('1011'),
+            48: bits('0001'),
+            54: bits('0011')}
 
 
-def encode(data_rate: int, length_bytes: int) -> str:
+def encode(data_rate: int, length_bytes: int) -> bits:
     """
     17.3.4 SIGNAL field - IEEE Std 802.11-2016
 
@@ -51,7 +52,7 @@ def encode(data_rate: int, length_bytes: int) -> str:
     signal += reverse(int_to_binstr(length_bytes, bits=12))
 
     # Bit 17 shall be a positive parity (even-parity) bit for bits 0–16
-    signal += str(signal.count('1') & 1)
+    signal += signal.count('1') & 1
 
     # In order to facilitate a reliable and timely detection of the RATE and LENGTH fields, 6 zero tail bits are
     # inserted into the PHY header.

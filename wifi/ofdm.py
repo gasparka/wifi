@@ -1,5 +1,3 @@
-import queue
-from collections import deque
 from dataclasses import dataclass
 from typing import List
 import numpy as np
@@ -38,7 +36,7 @@ class Packet:
     ]
 
 
-def modulate_ofdm(ofdm_symbol: OFDMSymbol, index_in_package: int) -> OFDMFrame:
+def modulate(ofdm_symbol: OFDMSymbol, index_in_package: int) -> OFDMFrame:
     """
     j) Divide the complex number string into groups of 48 complex numbers. Each such group is
         associated with one OFDM symbol. In each group, the complex numbers are numbered 0 to 47 and
@@ -147,89 +145,83 @@ def modulate_ofdm(ofdm_symbol: OFDMSymbol, index_in_package: int) -> OFDMFrame:
     return result
 
 
-def demodulate_ofdm_factory():
-    pilot_history = deque(maxlen=4)  # each symbol has 4 pilots, so 8 is average over 2 symbols
+def demodulate(samples: np.ndarray, equalizer: np.ndarray,
+               index_in_package: int) -> np.ndarray:
+    """ Undo the 'modulate_ofdm'
 
-    def demodulate_ofdm(samples: np.ndarray, equalizer: np.ndarray,
-                        index_in_package: int) -> np.ndarray:
-        """ Undo the 'modulate_ofdm'
+    Args:
+        samples: 80 time domain samples
+        index_in_package: determines pilot polarity, note that SIGNAL field has index of 0
 
-        Args:
-            samples: 80 time domain samples
-            index_in_package: determines pilot polarity, note that SIGNAL field has index of 0
+    Returns:
+        OFDM symbol (48 frequency domain values) and 4 pilot symbols (frequency domain)
 
-        Returns:
-            OFDM symbol (48 frequency domain values) and 4 pilot symbols (frequency domain)
+    """
 
-        """
+    assert len(samples) == 80
+    carriers = np.fft.fft(samples[16:80]) * equalizer
 
-        assert len(samples) == 80
-        carriers = np.fft.fft(samples[16:80]) * equalizer
+    pilots = np.empty(4, dtype=complex)
+    ofdm_symbol = np.empty(48, dtype=complex)
+    ofdm_symbol[0] = carriers[-26]
+    ofdm_symbol[1] = carriers[-25]
+    ofdm_symbol[2] = carriers[-24]
+    ofdm_symbol[3] = carriers[-23]
+    ofdm_symbol[4] = carriers[-22]
+    pilots[0] = carriers[-21]
+    ofdm_symbol[5] = carriers[-20]
+    ofdm_symbol[6] = carriers[-19]
+    ofdm_symbol[7] = carriers[-18]
+    ofdm_symbol[8] = carriers[-17]
+    ofdm_symbol[9] = carriers[-16]
+    ofdm_symbol[10] = carriers[-15]
+    ofdm_symbol[11] = carriers[-14]
+    ofdm_symbol[12] = carriers[-13]
+    ofdm_symbol[13] = carriers[-12]
+    ofdm_symbol[14] = carriers[-11]
+    ofdm_symbol[15] = carriers[-10]
+    ofdm_symbol[16] = carriers[-9]
+    ofdm_symbol[17] = carriers[-8]
+    pilots[1] = carriers[-7]
+    ofdm_symbol[18] = carriers[-6]
+    ofdm_symbol[19] = carriers[-5]
+    ofdm_symbol[20] = carriers[-4]
+    ofdm_symbol[21] = carriers[-3]
+    ofdm_symbol[22] = carriers[-2]
+    ofdm_symbol[23] = carriers[-1]
+    ofdm_symbol[24] = carriers[1]
+    ofdm_symbol[25] = carriers[2]
+    ofdm_symbol[26] = carriers[3]
+    ofdm_symbol[27] = carriers[4]
+    ofdm_symbol[28] = carriers[5]
+    ofdm_symbol[29] = carriers[6]
+    pilots[2] = carriers[7]
+    ofdm_symbol[30] = carriers[8]
+    ofdm_symbol[31] = carriers[9]
+    ofdm_symbol[32] = carriers[10]
+    ofdm_symbol[33] = carriers[11]
+    ofdm_symbol[34] = carriers[12]
+    ofdm_symbol[35] = carriers[13]
+    ofdm_symbol[36] = carriers[14]
+    ofdm_symbol[37] = carriers[15]
+    ofdm_symbol[38] = carriers[16]
+    ofdm_symbol[39] = carriers[17]
+    ofdm_symbol[40] = carriers[18]
+    ofdm_symbol[41] = carriers[19]
+    ofdm_symbol[42] = carriers[20]
+    pilots[3] = carriers[21]
+    ofdm_symbol[43] = carriers[22]
+    ofdm_symbol[44] = carriers[23]
+    ofdm_symbol[45] = carriers[24]
+    ofdm_symbol[46] = carriers[25]
+    ofdm_symbol[47] = carriers[26]
 
-        pilots = np.empty(4, dtype=complex)
-        ofdm_symbol = np.empty(48, dtype=complex)
-        ofdm_symbol[0] = carriers[-26]
-        ofdm_symbol[1] = carriers[-25]
-        ofdm_symbol[2] = carriers[-24]
-        ofdm_symbol[3] = carriers[-23]
-        ofdm_symbol[4] = carriers[-22]
-        pilots[0] = carriers[-21]
-        ofdm_symbol[5] = carriers[-20]
-        ofdm_symbol[6] = carriers[-19]
-        ofdm_symbol[7] = carriers[-18]
-        ofdm_symbol[8] = carriers[-17]
-        ofdm_symbol[9] = carriers[-16]
-        ofdm_symbol[10] = carriers[-15]
-        ofdm_symbol[11] = carriers[-14]
-        ofdm_symbol[12] = carriers[-13]
-        ofdm_symbol[13] = carriers[-12]
-        ofdm_symbol[14] = carriers[-11]
-        ofdm_symbol[15] = carriers[-10]
-        ofdm_symbol[16] = carriers[-9]
-        ofdm_symbol[17] = carriers[-8]
-        pilots[1] = carriers[-7]
-        ofdm_symbol[18] = carriers[-6]
-        ofdm_symbol[19] = carriers[-5]
-        ofdm_symbol[20] = carriers[-4]
-        ofdm_symbol[21] = carriers[-3]
-        ofdm_symbol[22] = carriers[-2]
-        ofdm_symbol[23] = carriers[-1]
-        ofdm_symbol[24] = carriers[1]
-        ofdm_symbol[25] = carriers[2]
-        ofdm_symbol[26] = carriers[3]
-        ofdm_symbol[27] = carriers[4]
-        ofdm_symbol[28] = carriers[5]
-        ofdm_symbol[29] = carriers[6]
-        pilots[2] = carriers[7]
-        ofdm_symbol[30] = carriers[8]
-        ofdm_symbol[31] = carriers[9]
-        ofdm_symbol[32] = carriers[10]
-        ofdm_symbol[33] = carriers[11]
-        ofdm_symbol[34] = carriers[12]
-        ofdm_symbol[35] = carriers[13]
-        ofdm_symbol[36] = carriers[14]
-        ofdm_symbol[37] = carriers[15]
-        ofdm_symbol[38] = carriers[16]
-        ofdm_symbol[39] = carriers[17]
-        ofdm_symbol[40] = carriers[18]
-        ofdm_symbol[41] = carriers[19]
-        ofdm_symbol[42] = carriers[20]
-        pilots[3] = carriers[21]
-        ofdm_symbol[43] = carriers[22]
-        ofdm_symbol[44] = carriers[23]
-        ofdm_symbol[45] = carriers[24]
-        ofdm_symbol[46] = carriers[25]
-        ofdm_symbol[47] = carriers[26]
+    # remove latent frequency offset by using pilot symbols
+    pilots *= PILOT_POLARITY[index_in_package % 127]
+    mean_phase_offset = np.angle(np.mean(pilots))
+    ofdm_symbol *= np.exp(-1j * mean_phase_offset)
 
-        # remove latent frequency offset by using pilot symbols
-        pilots *= PILOT_POLARITY[index_in_package % 127]
-        pilot_history.extend(pilots)
-        mean_phase_offset = np.angle(np.mean(pilot_history))
-        ofdm_symbol *= np.exp(-1j * mean_phase_offset)
-
-        return ofdm_symbol
-
-    return demodulate_ofdm
+    return ofdm_symbol
 
 
 def test_ofdm_i18():
@@ -238,7 +230,7 @@ def test_ofdm_i18():
             '00011100011110101011010010001101101101011100110000100001100000000000011011011001101101101 '
     from wifi.modulation import bits_to_symbols
     input_ofdm_symbol = bits_to_symbols(input, bits_per_symbol=4)
-    output = modulate_ofdm(input_ofdm_symbol, index_in_package=1)
+    output = modulate(input_ofdm_symbol, index_in_package=1)
 
     # Table I-25—Time domain representation of the DATA field: symbol 1of 6
     expected = [(-0.139 + 0.05j), (0.004 + 0.014j), (0.011 - 0.1j), (-0.097 - 0.02j), (0.062 + 0.081j),
@@ -262,5 +254,5 @@ def test_ofdm_i18():
     np.testing.assert_equal(expected[1:-1], np.round(output[1:-1], 3))
 
     # test demodulation
-    ofdm_symbol = demodulate_ofdm(output, equalizer=[1] * 64, index_in_package=1)
+    ofdm_symbol = demodulate(output, equalizer=[1] * 64, index_in_package=1)
     np.testing.assert_allclose(ofdm_symbol, input_ofdm_symbol)

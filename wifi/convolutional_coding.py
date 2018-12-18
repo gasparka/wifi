@@ -2,7 +2,8 @@ import logging
 import numpy as np
 from numba import njit
 
-from wifi.util import int_to_binstr, xor_reduce_poly
+from wifi.bits import bits
+from wifi.util import xor_reduce_poly
 
 logger = logging.getLogger(__name__)
 
@@ -20,13 +21,15 @@ def split(data, n):
     return [data[i:i + n] for i in range(0, len(data), n)]
 
 
-def encode(data, coding_rate='1/2'):
+def encode(data: bits, coding_rate='1/2') -> bits:
     """ See Figure 17-8—Convolutional encoder """
-    output = ''
-    shr = '0' * (K - 1)
+    # output = bits('')
+    # shr = bits('0' * (K - 1))
+    output = bits('')
+    shr = bits('0' * (K - 1))
     for bit in data:
         i = bit + shr
-        output += int_to_binstr(OUTPUT_LUT[int(i, 2)], bits=2)
+        output += bits.from_int(OUTPUT_LUT[int(i, 2)], bits=2)
         shr = i[:-1]  # advance the shift register
 
     """
@@ -42,7 +45,7 @@ def encode(data, coding_rate='1/2'):
         # throw out each 3. and 4. bit groups of 6 bits
         output = [bit for i, bit in enumerate(output) if (i % 6) != 3 and (i % 6) != 4]
 
-    return ''.join(output)
+    return bits(output)
 
 
 @njit()
@@ -116,7 +119,7 @@ def trellis_kernel(rx):
     return bits, best_score
 
 
-def decode(data, coding_rate='1/2'):
+def decode(data: bits, coding_rate='1/2') -> bits:
     """ See 'Bits, Signals, and Packets: An Introduction to Digital Communications and Networks' ->
         'Viterbi Decoding of Convolutional Codes (PDF - 1.4MB)'
     """
@@ -173,12 +176,11 @@ def decode(data, coding_rate='1/2'):
     data = np.array([LUT[group] for group in split(data, split_size)]).flatten()
 
     # Step 3. Execute the decoder and profit
-    bits, error_score = trellis_kernel(data)
-    bits = ''.join(str(x) for x in bits)
-    logger.info(f'Decoded {len(bits)} bits, error_score={int(error_score)}, rate={coding_rate}')
+    out, error_score = trellis_kernel(data)
+    logger.info(f'Decoded {len(out)} bits, error_score={int(error_score)}, rate={coding_rate}')
     # if error_score != 0:
     #     raise Exception()
-    return bits
+    return bits(out)
 
 
 def test_signal():

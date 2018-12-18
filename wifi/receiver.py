@@ -5,10 +5,9 @@ from typing import Tuple
 import numpy as np
 import pytest
 
-from wifi import scrambler, convolutional_coding, signal_field
+from wifi import scrambler, convolutional_coding, signal_field, ofdm
 from wifi.interleaving import apply
 from wifi.modulation import symbols_to_bits
-from wifi.ofdm import demodulate_ofdm_factory
 from wifi.preamble import long_training_symbol
 from wifi.scrambler import scrambler
 from wifi.transmitter import get_params_from_rate, transmitter
@@ -61,6 +60,7 @@ class Packet:
     data_symbols: Tuple[np.ndarray, int]
     bits: str
 
+
 # @profile
 def receiver(iq):
     """ Channel estimation - calculate how much the known symbols have changed and produce inverse channel """
@@ -69,9 +69,8 @@ def receiver(iq):
     equalizer = 1 / channel_estimate
 
     """ Signal field demodulation - this gives us the data rate for the payload and also the payload length """
-    ofdm_demodulator = demodulate_ofdm_factory()
     signal = iq[128: 128 + 80]
-    signal_symbols = ofdm_demodulator(signal, equalizer, index_in_package=0)
+    signal_symbols = ofdm.demodulate(signal, equalizer, index_in_package=0)
     bits = symbols_to_bits(signal_symbols, bits_per_symbol=1)
     bits = apply(bits, coded_bits_symbol=48, coded_bits_subcarrier=1, undo=True)
     bits = convolutional_coding.decode(bits)
@@ -85,7 +84,7 @@ def receiver(iq):
     """ Payload demodulation """
     signal_end = 128 + 80
     data_groups = iq[signal_end: signal_end + (80 * n_ofdm_symbols)].reshape((-1, 80))
-    data_symbols = np.array([ofdm_demodulator(group, equalizer, index_in_package=1 + i)
+    data_symbols = np.array([ofdm.demodulate(group, equalizer, index_in_package=1 + i)
                              for i, group in enumerate(data_groups)])
 
     """ Symbols to bits flow """

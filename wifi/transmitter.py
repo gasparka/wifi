@@ -1,60 +1,13 @@
 import logging
 from textwrap import wrap
 import numpy as np
-
-from wifi import convolutional_coding, signal_field
-from wifi.interleaving import apply
+from wifi import convolutional_coding, signal_field, ofdm, interleaving, config
+from wifi.bits import bits
 from wifi.modulation import bits_to_symbols
-from wifi.ofdm import modulate_ofdm
 from wifi.preamble import short_training_sequence, long_training_sequence
 from wifi.scrambler import scrambler
-from wifi.util import Bits
 
 log = logging.getLogger(__name__)
-
-
-def get_params_from_rate(data_rate):
-    """
-    Table 17-4—Modulation-dependent parameters
-    +------------+---------+----------------+-----------------+-----------------+--------------+
-    | Modulation |         |                |                 |                 |              |
-    |            | Coding  |   Coded bits   |   Coded bits    |    Data bits    |   Data Rate  |
-    |            |         |                |                 |                 | (20MHz band) |
-    |            |   rate  | per subcarrier | per OFDM symbol | per OFDM symbol |              |
-    +------------+---------+----------------+-----------------+-----------------+--------------+
-    |    BPSK    |   1/2   |        1       |        48       |        24       |       6      |
-    +------------+---------+----------------+-----------------+-----------------+--------------+
-    |    BPSK    |   3/4   |        1       |        48       |        36       |       9      |
-    +------------+---------+----------------+-----------------+-----------------+--------------+
-    |    QPSK    |   1/2   |        2       |        96       |        48       |      12      |
-    +------------+---------+----------------+-----------------+-----------------+--------------+
-    |    QPSK    |   3/4   |        2       |        96       |        72       |      18      |
-    +------------+---------+----------------+-----------------+-----------------+--------------+
-    |   16-QAM   |   1/2   |        4       |       192       |        96       |      24      |
-    +------------+---------+----------------+-----------------+-----------------+--------------+
-    |   16-QAM   |   3/4   |        4       |       192       |       144       |      36      |
-    +------------+---------+----------------+-----------------+-----------------+--------------+
-    |   64-QAM   |   2/3   |        6       |       288       |       192       |      48      |
-    +------------+---------+----------------+-----------------+-----------------+--------------+
-    |   64-QAM   |   3/4   |        6       |       288       |       216       |      54      |
-    +------------+---------+----------------+-----------------+-----------------+--------------+
-    """
-    if data_rate == 6:
-        return 'BPSK', '1/2', 1, 48, 24
-    elif data_rate == 9:
-        return 'BPSK', '3/4', 1, 48, 36
-    elif data_rate == 12:
-        return 'QPSK', '1/2', 2, 96, 48
-    elif data_rate == 18:
-        return 'QPSK', '3/4', 2, 96, 72
-    elif data_rate == 24:
-        return '16-QAM', '1/2', 4, 192, 96
-    elif data_rate == 36:
-        return '16-QAM', '3/4', 4, 192, 144
-    elif data_rate == 48:
-        return '64-QAM', '2/3', 6, 288, 192
-    elif data_rate == 54:
-        return '64-QAM', '3/4', 6, 288, 216
 
 
 def transmitter(data, data_rate):
@@ -79,17 +32,18 @@ def transmitter(data, data_rate):
     n_bytes = len(wrap(data, 8))
     signal = signal_field.encode(data_rate, length_bytes=n_bytes)
     signal = convolutional_coding.encode(signal, '1/2')
-    signal = apply(signal, coded_bits_symbol=48, coded_bits_subcarrier=1)
+    signal = interleaving.apply(signal, coded_bits_symbol=48, coded_bits_subcarrier=1)
     signal = bits_to_symbols(signal, bits_per_symbol=1)
-    signal = modulate_ofdm(signal, index_in_package=0)
+    signal = ofdm.modulate(signal, index_in_package=0)
 
     """
     c) Calculate from RATE field of the TXVECTOR the number of data bits per OFDM symbol (N DBPS ),
     the coding rate (R), the number of bits in each OFDM subcarrier (N BPSC ), and the number of coded
     bits per OFDM symbol (N CBPS ). Refer to 17.3.2.3 for details.
     """
-    modulation, coding_rate, coded_bits_subcarrier, \
-    coded_bits_symbol, data_bits_symbol = get_params_from_rate(data_rate)
+    conf = config.from_data_rate(data_rate)
+    # modulation, coding_rate, coded_bits_subcarrier, \
+    # coded_bits_symbol, data_bits_symbol = get_params_from_rate(data_rate)
 
     """
     d) Append the PSDU to the SERVICE field of the TXVECTOR. Extend the resulting bit string with
@@ -109,14 +63,14 @@ def transmitter(data, data_rate):
     tail = '0' * 6
     data = service + data + tail
 
-    n_symbols = int(np.ceil(len(data) / data_bits_symbol))
-    n_data = n_symbols * data_bits_symbol
+    n_symbols = int(np.ceil(len(data) / conf.data_bits_per_ofdm_symbol))
+    n_data = n_symbols * conf.data_bits_per_ofdm_symbol
     n_pad = int(n_data - len(data))
     pad = '0' * n_pad
 
     data = data + pad
     log.info(f'Package {n_bytes} bytes, {n_symbols} OFDM symbols ({n_pad} padding bits added)\n'
-             f'\t data_rate={data_rate}, modulation={modulation}, coding_rate={coding_rate}')
+             f'\t data_rate={data_rate}, modulation={conf.modulation}, coding_rate={conf.coding_rate}')
 
     """
     e) If the TXVECTOR parameter CH_BANDWIDTH_IN_NON_HT is not present, initiate the
@@ -137,15 +91,15 @@ def transmitter(data, data_rate):
     some of the encoder output string (chosen according to “puncturing pattern”) to reach the “coding
     rate” corresponding to the TXVECTOR parameter RATE. Refer to 17.3.5.6 for details.
     """
-    data = convolutional_coding.encode(data, coding_rate)
+    data = convolutional_coding.encode(data, conf.coding_rate)
 
     """
     h) Divide the encoded bit string into groups of 'coded_bits_symbol' bits. Within each group, perform an
     “interleaving” (reordering) of the bits according to a rule corresponding to the TXVECTOR
     parameter RATE. Refer to 17.3.5.7 for details.
     """
-    interleaved = [apply(bit_group, coded_bits_symbol, coded_bits_subcarrier)
-                   for bit_group in wrap(data, coded_bits_symbol)]
+    interleaved = [interleaving.apply(bit_group, conf.coded_bits_per_carrier_symbol, conf.coded_bits_per_ofdm_symbol)
+                   for bit_group in wrap(data, conf.coded_bits_per_carrier_symbol)]
     data = ''.join(interleaved)
 
     """
@@ -153,7 +107,7 @@ def transmitter(data, data_rate):
     For each of the bit groups, convert the bit group into a complex number according to the modulation encoding tables.
     Refer to 17.3.5.8 for details.
     """
-    data = bits_to_symbols(data, coded_bits_subcarrier)
+    data = bits_to_symbols(data, conf.coded_bits_per_carrier_symbol)
 
     """
     j) Divide the complex number string into groups of 48 complex numbers. Each such group is
@@ -171,7 +125,7 @@ def transmitter(data, data_rate):
     forming a GI, and truncate the resulting periodic waveform to a single OFDM symbol length by
     applying time domain windowing. Refer to 17.3.5.10 for details.
     """
-    data = [modulate_ofdm(ofdm_symbol, index_in_package=i + 1)
+    data = [ofdm.modulate(ofdm_symbol, index_in_package=i + 1)  # + 1 because signal field was already modulated!
             for i, ofdm_symbol in enumerate(data.reshape((-1, 48)))]
 
     """
@@ -205,7 +159,7 @@ def test_annexi():
     input = '0x0402002E006008CD37A60020D6013CF1006008AD3BAF00004A6F792C2062726967687420737061726B206F6620646976696E' \
             '6974792C0A4461756768746572206F6620456C797369756D2C0A466972652D696E73697265642077652074726561673321B6'
 
-    output = np.round(transmitter(Bits(input), data_rate=36), 3)
+    output = np.round(transmitter(bits(input), data_rate=36), 3)
 
     # Table I-22—Time domain representation of the short training sequence
     expect_short_train = [(0.023 + 0.023j), (-0.132 + 0.002j), (-0.013 - 0.079j), (0.143 - 0.013j), (0.092 + 0j),
