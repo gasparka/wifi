@@ -1,7 +1,7 @@
 from typing import Tuple
 
 from wifi.bits import bits
-from wifi.util import int_to_binstr, reverse
+from wifi.util import reverse
 
 """
 Data rate to bits:
@@ -16,14 +16,14 @@ Data rate to bits:
 | 0001   | 48                           |
 | 0011   | 54                           |
 """
-RATE_LUT = {6: bits('1101'),
-            9: bits('1111'),
-            12: bits('0101'),
-            18: bits('0111'),
-            24: bits('1001'),
-            36: bits('1011'),
-            48: bits('0001'),
-            54: bits('0011')}
+RATE_LUT = {6: '1101',
+            9: '1111',
+            12: '0101',
+            18: '0111',
+            24: '1001',
+            36: '1011',
+            48: '0001',
+            54: '0011'}
 
 
 def encode(data_rate: int, length_bytes: int) -> bits:
@@ -43,13 +43,13 @@ def encode(data_rate: int, length_bytes: int) -> bits:
         raise Exception(f'Maximum bytes in a packet is {(2**12)-1}, you require {length_bytes}')
 
     # First 4 bits indicate rate
-    signal = RATE_LUT[data_rate]
+    signal = bits(RATE_LUT[data_rate])
 
     # Bit 4 is reserved. It shall be set to 0 on transmit and ignored on receive.
     signal += '0'
 
     # Data length
-    signal += reverse(int_to_binstr(length_bytes, bits=12))
+    signal += reverse(bits.from_int(length_bytes, bits=12))
 
     # Bit 17 shall be a positive parity (even-parity) bit for bits 0–16
     signal += signal.count('1') & 1
@@ -60,12 +60,13 @@ def encode(data_rate: int, length_bytes: int) -> bits:
     return signal
 
 
-def decode(bits: str) -> Tuple[int, int]:
-    parity = str(bits[:17].count('1') & 1)
-    assert parity == bits[17]
+def decode(data: bits) -> Tuple[int, int]:
+    parity = data[:17].count('1') & 1
+    assert parity == data[17]
 
-    data_rate = [key for key, value in RATE_LUT.items() if value == bits[:4]][0]
-    length_bytes = int(reverse(bits[5:17]), 2)
+    data_rate_bits = data[:4]
+    data_rate = [key for key, value in RATE_LUT.items() if value == data_rate_bits][0]
+    length_bytes = int(reverse(data[5:17]), 2)
     return data_rate, length_bytes
 
 

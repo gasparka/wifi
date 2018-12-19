@@ -1,6 +1,7 @@
-from dataclasses import dataclass
 from typing import List
 import numpy as np
+from wifi import modulation
+from wifi.modulation import Symbol
 
 PILOT_POLARITY = [1, 1, 1, 1, -1, -1, -1, 1, -1, -1, -1, -1, 1, 1, -1, 1, -1, -1, 1, 1, -1, 1, 1, -1, 1, 1, 1, 1, 1, 1,
                   -1, 1, 1, 1, -1, 1, 1, -1, -1, 1, 1, 1, -1, 1, -1, -1, -1, 1, -1, 1, -1, -1, 1, -1, -1, 1, 1, 1, 1, 1,
@@ -9,31 +10,12 @@ PILOT_POLARITY = [1, 1, 1, 1, -1, -1, -1, 1, -1, -1, -1, -1, 1, 1, -1, 1, -1, -1
                   1, 1, -1, -1, -1, -1, -1, -1, -1]
 
 
-class Symbol(complex):
-    """
-    Frequency domain value that is used to modulate carriers
-    """
-    pass
+OFDMSymbol = List[modulation.Symbol]
+OFDMSymbol.__doc__ = """ Contains 48 Symbols, one to modulate each OFDM carrier. """
 
-
-@dataclass(frozen=True)
-class OFDMSymbol:
-    """ 48 symbols i.e. one symbol to modulate each IEE802.11 OFDM carrier """
-    symbols: List[Symbol]
-
-
-@dataclass(frozen=True)
-class OFDMFrame:
-    """ 80 time-domain samples. Each frame is composed of 16 guard-interval (GI) (same as last ..) and
-    64 ifft values"""
-    samples: List[complex]
-
-
-class Packet:
-    short_train: List[OFDMSymbol]
-    long_train: List[OFDMSymbol]
-    payload: List[OFDMSymbol
-    ]
+OFDMFrame = List[complex]
+OFDMFrame.__doc__ = """ Contains 80 time-domain samples. 
+                        First 16 samples are the guard-interval (GI), last 64 are the result of IFFT """
 
 
 def modulate(ofdm_symbol: OFDMSymbol, index_in_package: int) -> OFDMFrame:
@@ -74,13 +56,13 @@ def modulate(ofdm_symbol: OFDMSymbol, index_in_package: int) -> OFDMFrame:
     """
     assert len(ofdm_symbol) == 48
     pilots = np.array([1, 1, 1, -1]) * PILOT_POLARITY[index_in_package % 127]
-    carriers = [0] * 64
-    carriers[-32] = 0
-    carriers[-31] = 0
-    carriers[-30] = 0
-    carriers[-29] = 0
-    carriers[-28] = 0
-    carriers[-27] = 0
+    carriers = [Symbol(0)] * 64
+    carriers[-32] = 0j
+    carriers[-31] = 0j
+    carriers[-30] = 0j
+    carriers[-29] = 0j
+    carriers[-28] = 0j
+    carriers[-27] = 0j
     carriers[-26] = ofdm_symbol[0]
     carriers[-25] = ofdm_symbol[1]
     carriers[-24] = ofdm_symbol[2]
@@ -142,11 +124,10 @@ def modulate(ofdm_symbol: OFDMSymbol, index_in_package: int) -> OFDMFrame:
 
     ifft = np.fft.ifft(carriers)
     result = np.concatenate([ifft[-16:], ifft])  # add 16 samples of GI (guard interval)
-    return result
+    return list(result)
 
 
-def demodulate(samples: np.ndarray, equalizer: np.ndarray,
-               index_in_package: int) -> np.ndarray:
+def demodulate(samples: OFDMFrame, equalizer: np.ndarray, index_in_package: int) -> OFDMSymbol:
     """ Undo the 'modulate_ofdm'
 
     Args:
@@ -221,15 +202,16 @@ def demodulate(samples: np.ndarray, equalizer: np.ndarray,
     mean_phase_offset = np.angle(np.mean(pilots))
     ofdm_symbol *= np.exp(-1j * mean_phase_offset)
 
-    return ofdm_symbol
+    return list(ofdm_symbol)
 
 
 def test_ofdm_i18():
     # IEEE Std 802.11-2016 - Table I-19—Interleaved bits of first DATA symbol
-    input = '0111011111110000111011111100010001110011000000001011111100010001000100001001101000011101000100100110111' \
-            '00011100011110101011010010001101101101011100110000100001100000000000011011011001101101101 '
-    from wifi.modulation import bits_to_symbols
-    input_ofdm_symbol = bits_to_symbols(input, bits_per_symbol=4)
+    from wifi.bits import bits
+    from wifi import modulation
+    input = bits('0111011111110000111011111100010001110011000000001011111100010001000100001001101000011101000100'
+                 '10011011100011100011110101011010010001101101101011100110000100001100000000000011011011001101101101')
+    input_ofdm_symbol = modulation.bits_to_symbols(input, bits_per_symbol=4)
     output = modulate(input_ofdm_symbol, index_in_package=1)
 
     # Table I-25—Time domain representation of the DATA field: symbol 1of 6

@@ -1,9 +1,9 @@
 import logging
 from textwrap import wrap
 import numpy as np
-from wifi import convolutional_coding, signal_field, ofdm, interleaving, config
+from wifi import convolutional_coding, signal_field, ofdm, interleaving, modulation
 from wifi.bits import bits
-from wifi.modulation import bits_to_symbols
+from wifi.config import Config
 from wifi.preamble import short_training_sequence, long_training_sequence
 from wifi.scrambler import scrambler
 
@@ -33,7 +33,7 @@ def transmitter(data, data_rate):
     signal = signal_field.encode(data_rate, length_bytes=n_bytes)
     signal = convolutional_coding.encode(signal, '1/2')
     signal = interleaving.apply(signal, coded_bits_symbol=48, coded_bits_subcarrier=1)
-    signal = bits_to_symbols(signal, bits_per_symbol=1)
+    signal = modulation.bits_to_symbols(signal, bits_per_symbol=1)
     signal = ofdm.modulate(signal, index_in_package=0)
 
     """
@@ -41,7 +41,7 @@ def transmitter(data, data_rate):
     the coding rate (R), the number of bits in each OFDM subcarrier (N BPSC ), and the number of coded
     bits per OFDM symbol (N CBPS ). Refer to 17.3.2.3 for details.
     """
-    conf = config.from_data_rate(data_rate)
+    conf = Config.from_data_rate(data_rate)
     # modulation, coding_rate, coded_bits_subcarrier, \
     # coded_bits_symbol, data_bits_symbol = get_params_from_rate(data_rate)
 

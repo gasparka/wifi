@@ -8,9 +8,9 @@ The normalization factor depends on the base modulation mode. Note that the modu
 from the start to the end of the transmission, as the signal changes from SIGNAL to DATA.
 The purpose of the normalization factor is to achieve the same average power for all mappings.
 """
+from typing import List, _alias
 import numpy as np
-from textwrap import wrap
-from wifi.util import int_to_binstr
+from wifi.bits import bits
 
 BPSK_LUT = np.array([-1 + 0j, 1 + 0j])
 
@@ -38,20 +38,25 @@ LUT = {1: BPSK_LUT,
        6: QAM64_LUT}
 
 
-def bits_to_symbols(bits: str, bits_per_symbol: int) -> np.ndarray:
-    indexes = [int(bit_group, 2) for bit_group in wrap(bits, bits_per_symbol)]
-    symbols = [LUT[bits_per_symbol][index] for index in indexes]
-    return np.array(symbols)
+Symbol = _alias(complex, ())
+Symbol.__doc__ = """ Frequency domain value, used to modulate individual OFDM carrier """
 
 
-def symbols_to_bits(symbols: np.ndarray, bits_per_symbol: int) -> str:
+def bits_to_symbols(data: bits, bits_per_symbol: int) -> List[Symbol]:
+    bit_groups = data.reshape((-1, bits_per_symbol))
+    indexes = [group.astype(int) for group in bit_groups]
+    symbols = [Symbol(LUT[bits_per_symbol][index]) for index in indexes]
+    return symbols
+
+
+def symbols_to_bits(symbols: List[Symbol], bits_per_symbol: int) -> bits:
     errors = [abs(LUT[bits_per_symbol] - symbol) for symbol in symbols]
-    indexes = np.argmin(errors, axis=1)
-    bits = ''.join(int_to_binstr(index, bits=bits_per_symbol) for index in indexes)
-    return bits
+    best_indexes = np.argmin(errors, axis=1)
+    return bits([bits.from_int(index, bits_per_symbol) for index in best_indexes])
 
 
 def symbols_error(symbols: np.ndarray, bits_per_symbol: int) -> np.ndarray:
+    # TODO: wtf is this?
     errors = [abs(LUT[bits_per_symbol] - symbol) for symbol in symbols]
     ret = [np.min(err) for err in errors]
     return np.array(ret)
@@ -61,7 +66,8 @@ def test_i163():
     """ IEEE Std 802.11-2016 - Table I-19—Interleaved bits of first DATA symbol """
 
     # IEEE Std 802.11-2016 - Table I-19—Interleaved bits of first DATA symbol
-    input = '011101111111000011101111110001000111001100000000101111110001000100010000100110100001110100010010011011100011100011110101011010010001101101101011100110000100001100000000000011011011001101101101'
+    input = bits('01110111111100001110111111000100011100110000000010111111000100010001000010011010000111010001001'
+                 '0011011100011100011110101011010010001101101101011100110000100001100000000000011011011001101101101')
 
     # Table I-20—Frequency domain of first DATA symbol
     # I have removed padding, tail and pilot symbols - these will be added in next block
@@ -86,7 +92,7 @@ def test_i163():
 
 def test_i144():
     # Table I-9—SIGNAL field bits after interleaving
-    input = '100101001101000000010100100000110010010010010100'
+    input = bits('100101001101000000010100100000110010010010010100')
 
     # Table I-10—Frequency domain representation of SIGNAL field
     expected = [(1 + 0j), (-1 + 0j), (-1 + 0j), (1 + 0j), (-1 + 0j), (1 + 0j),

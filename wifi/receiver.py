@@ -10,7 +10,7 @@ from wifi.interleaving import apply
 from wifi.modulation import symbols_to_bits
 from wifi.preamble import long_training_symbol
 from wifi.scrambler import scrambler
-from wifi.transmitter import get_params_from_rate, transmitter
+from wifi.transmitter import transmitter
 from wifi.util import moving_average, hex_to_bitstr, awgn, evm_db2
 
 logger = logging.getLogger(__name__)

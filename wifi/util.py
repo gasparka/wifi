@@ -2,8 +2,7 @@ import logging
 
 import numpy as np
 import matplotlib.pyplot as plt
-import scipy
-from scipy import signal
+
 
 logging.basicConfig(level=logging.DEBUG)
 log = logging.getLogger('util')
