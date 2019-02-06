@@ -52,12 +52,13 @@ def test_i152():
 
     output = apply(input)
 
-    # test reverse
-    rev = undo(output)
-    assert rev == input
-
     # test against standard -> restore the tail bits to 0
     tail_zeroed = list(output)
     tail_zeroed[816:822] = ['0', '0', '0', '0', '0', '0']
     tail_zeroed = ''.join(tail_zeroed)
     assert tail_zeroed == expect
+
+    # test reverse
+    rev = undo(output)
+    assert rev == input
+

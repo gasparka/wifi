@@ -100,14 +100,19 @@ class bits:
 
         >>> bits('010') + False
         '0100'
+
+        Must not mutate the current object!
+        >>> a = bits('0')
+        >>> a + '1'
+        '01'
+        >>> a
+        '0'
         """
         if isinstance(other, int):  # int also covers bool
             assert other == 0 or other == 1
             other = str(int(other))
 
-        # BUG...must be immutable!
-        self.data += str(other)
-        return self
+        return bits(self.data + str(other))
 
     def __radd__(self, other):
         """
@@ -120,13 +125,19 @@ class bits:
 
         >>> False + bits('010')
         '0010'
+
+        Must not mutate the current object!
+        >>> a = bits('0')
+        >>> '1' + a
+        '10'
+        >>> a
+        '0'
         """
         if isinstance(other, int):  # int also covers bool
             assert other == 0 or other == 1
             other = str(int(other))
 
-        self.data = str(other) + self.data
-        return self
+        return bits(str(other) + self.data)
 
     def reshape(self, shape) -> List['bits']:
         """
