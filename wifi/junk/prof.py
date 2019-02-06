@@ -16,3 +16,6 @@ import numpy as np
 # a = bits('123')
 # assert isinstance(a, str)
 # pass
+
+
+bits('111') ^ bits('011')

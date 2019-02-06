@@ -9,7 +9,7 @@ from wifi import scrambler, convolutional_coding, signal_field, ofdm
 from wifi.interleaving import apply
 from wifi.modulation import symbols_to_bits
 from wifi.preamble import long_training_symbol
-from wifi.scrambler import scrambler
+from wifi.scrambler import apply
 from wifi.transmitter import transmitter
 from wifi.util import moving_average, hex_to_bitstr, awgn, evm_db2
 
@@ -92,7 +92,7 @@ def receiver(iq):
             for symbol in data_symbols]
     bits = ''.join(apply(b, coded_bits_symbol, coded_bits_subcarrier, undo=True) for b in bits)
     bits = convolutional_coding.decode(bits, coding_rate)
-    bits = scrambler(bits)
+    bits = apply(bits)
     bits = bits[16:16 + length_bytes * 8]
     # data_symbols = None
 

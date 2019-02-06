@@ -66,7 +66,7 @@ def decode(data: bits) -> Tuple[int, int]:
 
     data_rate_bits = data[:4]
     data_rate = [key for key, value in RATE_LUT.items() if value == data_rate_bits][0]
-    length_bytes = int(reverse(data[5:17]), 2)
+    length_bytes = data[5:17].flip().astype(int)
     return data_rate, length_bytes
 
 

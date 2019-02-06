@@ -29,17 +29,23 @@ class bits:
 
         >>> bits(['01', '10'])
         '0110'
+
+        >>> bits([bits('01'), bits('10')])
+        '0110'
+
+        >>> bits('0x1234')
+        '0001001000110100'
         """
         if isinstance(val, list):
-            val = ''.join(val)
+            import operator, functools
+            val = functools.reduce(operator.add, val)
         elif isinstance(val, np.ndarray):
             val = ''.join([str(int(x)) for x in val])
         elif isinstance(val, str) and val[0:2] in ('0x', '0X'):
             val = val[2:]
             num_of_bits = int(len(val) * np.log2(16))
-
             val = bits.from_int(int(val, 16), num_of_bits)
-            val = flip_byte_endian(val)  # IEE802.11 examples need this?!, tho it is confusing
+            # val = flip_byte_endian(val)  # IEE802.11 examples need this?!, tho it is confusing
 
         self.data = val
 
@@ -99,6 +105,7 @@ class bits:
             assert other == 0 or other == 1
             other = str(int(other))
 
+        # BUG...must be immutable!
         self.data += str(other)
         return self
 
@@ -145,11 +152,38 @@ class bits:
         """
         return self.data.count(x)
 
+    def flip(self):
+        """
+        >>> bits('01001').flip()
+        '10010'
+        """
+        return bits(self.data[::-1])
+
+    def split(self, amount: int) -> List['bits']:
+        """
+        >>> bits('0011').reshape((-1, 2))
+        ['00', '11']
+        """
+        return [bits(self.data[i:i + amount]) for i in range(0, len(self.data), amount)]
+
     def __len__(self):
         return len(self.data)
 
-    # def __xor__(self, other):
+    def __xor__(self, other):
+        """
+        >>> bits('1') ^ bits('1')
+        '0'
 
-def test_wtf():
-    a = bits('123')
-    pass
+        >>> bits('111') ^ bits('11')
+        '100'
+        """
+        res = self.astype(int) ^ other.astype(int)
+        return bits.from_int(res, bits=max(len(self), len(other)))
+
+    def __rxor__(self, other):
+        """
+        >>> '1' ^ bits('1')
+        '0'
+        """
+        return bits(other) ^ self
+

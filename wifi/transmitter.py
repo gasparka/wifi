@@ -5,12 +5,12 @@ from wifi import convolutional_coding, signal_field, ofdm, interleaving, modulat
 from wifi.bits import bits
 from wifi.config import Config
 from wifi.preamble import short_training_sequence, long_training_sequence
-from wifi.scrambler import scrambler
+from wifi.scrambler import apply
 
 log = logging.getLogger(__name__)
 
 
-def transmitter(data, data_rate):
+def transmitter(data: bits, data_rate:int ):
     """
     a) Produce the PHY Preamble field, composed of 10 repetitions of a “short training sequence” (used
     for AGC convergence, diversity selection, timing acquisition, and coarse frequency acquisition in
@@ -29,7 +29,7 @@ def transmitter(data, data_rate):
     described subsequently for data transmission with BPSK-OFDM modulated at coding rate 1/2. The
     contents of the SIGNAL field are not scrambled. Refer to 17.3.4 for details.
     """
-    n_bytes = len(wrap(data, 8))
+    n_bytes = len(data.split(8))
     signal = signal_field.encode(data_rate, length_bytes=n_bytes)
     signal = convolutional_coding.encode(signal, '1/2')
     signal = interleaving.apply(signal, coded_bits_symbol=48, coded_bits_subcarrier=1)
@@ -77,7 +77,7 @@ def transmitter(data, data_rate):
     scrambler with a pseudorandom nonzero seed and generate a scrambling sequence. 
     XOR the scrambling sequence with the extended string of data bits. Refer to 17.3.5.5 for details.
     """
-    data = scrambler(data)
+    data = apply(data)
 
     """ 
     f) Replace the six scrambled zero bits following the data with six nonscrambled zero bits.
@@ -99,8 +99,8 @@ def transmitter(data, data_rate):
     parameter RATE. Refer to 17.3.5.7 for details.
     """
     interleaved = [interleaving.apply(bit_group, conf.coded_bits_per_carrier_symbol, conf.coded_bits_per_ofdm_symbol)
-                   for bit_group in wrap(data, conf.coded_bits_per_carrier_symbol)]
-    data = ''.join(interleaved)
+                   for bit_group in data.split(conf.coded_bits_per_carrier_symbol)]
+    data = bits(interleaved)
 
     """
     i) Divide the resulting coded and interleaved data string into groups of 'coded_bits_subcarrier' bits. 
@@ -156,10 +156,11 @@ def transmitter(data, data_rate):
 
 def test_annexi():
     # Table I-1—The message for the BCC example
-    input = '0x0402002E006008CD37A60020D6013CF1006008AD3BAF00004A6F792C2062726967687420737061726B206F6620646976696E' \
-            '6974792C0A4461756768746572206F6620456C797369756D2C0A466972652D696E73697265642077652074726561673321B6'
+    input = bits('0x0402002E006008CD37A60020D6013CF1006008AD3BAF00004A6F792C2062726967687420737061726B206F66206469766'
+                 '96E6974792C0A4461756768746572206F6620456C797369756D2C0A466972652D696E73697265642077652074726561673321B6')
 
-    output = np.round(transmitter(bits(input), data_rate=36), 3)
+    output = transmitter(input, data_rate=36)
+    output = np.round(output, 3)
 
     # Table I-22—Time domain representation of the short training sequence
     expect_short_train = [(0.023 + 0.023j), (-0.132 + 0.002j), (-0.013 - 0.079j), (0.143 - 0.013j), (0.092 + 0j),
