@@ -152,9 +152,8 @@ def transmit(data: bits, data_rate:int):
 
 
 def test_annexi():
-    # Table I-1—The message for the BCC example
-    input = bits('0x0402002E006008CD37A60020D6013CF1006008AD3BAF00004A6F792C2062726967687420737061726B206F66206469766'
-                 '96E6974792C0A4461756768746572206F6620456C797369756D2C0A466972652D696E73697265642077652074726561673321B6')
+    # Table I-1—The message for the BCC example - i have reversed bit ordering in each byte
+    input = bits('0x20400074000610b3ec6500046b803c8f000610b5dcf5000052f69e3404464e96e6162e04ce0e864ed604f6660426966e9676962e9e34502286aee6162ea64e04f66604a2369ece96aeb6345062964ea6b49676ce964ea62604eea6042e4ea686e6cc846d')
 
     output = transmit(input, data_rate=36)
     output = np.round(output, 3)
