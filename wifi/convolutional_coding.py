@@ -1,5 +1,7 @@
 import logging
 import numpy as np
+from hypothesis import given, assume, settings
+from hypothesis._strategies import binary, sampled_from
 from numba import njit
 
 from wifi.bits import bits
@@ -18,16 +20,9 @@ OUTPUT_LUT = [bits.from_int((xor_reduce_poly(x, G0) << 1) | xor_reduce_poly(x, G
               for x in range(2 ** K)]
 
 
-def encode(data: bits, coding_rate='1/2') -> bits:
+def do(data: bits, coding_rate='1/2') -> bits:
     """ See Figure 17-8—Convolutional encoder """
-    # output = bits('')
-    # shr = bits('0' * (K - 1))
-    # ll = bits('0' * K) + data
-    # states = [ll[i:i+K] for i in range(len(ll) - K)]
-    # outputs = [OUTPUT_LUT[i.astype(int)] for i in states]
-    # output = bits(outputs)
-
-
+    assume(len(data) >= 16)
     output = bits('')
     shr = bits('0' * (K - 1))
     for bit in data:
@@ -122,7 +117,7 @@ def trellis_kernel(rx): # pragma: no cover
     return bits, best_score
 
 
-def decode(data: bits, coding_rate='1/2') -> bits:
+def undo(data: bits, coding_rate='1/2') -> bits:
     """ See 'Bits, Signals, and Packets: An Introduction to Digital Communications and Networks' ->
         'Viterbi Decoding of Convolutional Codes (PDF - 1.4MB)'
     """
@@ -130,6 +125,9 @@ def decode(data: bits, coding_rate='1/2') -> bits:
     """ Step 1
     Depuncture the datastream i.e. add 'X' bits where bits where punctured in transmitter, these bits will be ignored.
     """
+    if data == '':
+        return data
+
     if coding_rate == '1/2':
         # no puncturing, each 2 bits can be directly converted to integer representation
         LUT = {
@@ -196,17 +194,17 @@ def test_signal():
 
     # IEEE Std 802.11-2016: Table I-8—SIGNAL field bits after encoding
     expected = bits('110100011010000100000010001111100111000000000000')
-    output = encode(input, coding_rate='1/2')
+    output = do(input, coding_rate='1/2')
     assert output == expected
 
     # test decoding
-    decoded = decode(output)
+    decoded = undo(output)
     assert decoded == input
 
     # test decoding with bit errors
     # 4 errors
     output = bits('010100011010100101000010001111100111000000100000')
-    decoded = decode(output)
+    decoded = undo(output)
     assert decoded == input
 
 
@@ -240,9 +238,15 @@ def test_i161():
              '01011011001000111001100101011111001010000011111011010100111010011111011110111000000100110111010110'
              '001110111100101010000000011011011011001110100100000111010111011011000010111111')
 
-    output = encode(input, coding_rate='3/4')
+    output = do(input, coding_rate='3/4')
     assert output == expect
 
     # test decoding
-    decoded = decode(expect, coding_rate='3/4')
+    decoded = undo(expect, coding_rate='3/4')
     assert decoded == input
+
+@settings(deadline=None)
+@given(binary(), sampled_from(['1/2', '2/3', '3/4']))
+def test_hypothesis_loop(data, coding_rate):
+    data = bits(data)
+    assert undo(do(data, coding_rate), coding_rate) == data

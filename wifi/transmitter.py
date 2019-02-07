@@ -29,7 +29,7 @@ def transmit(data: bits, data_rate:int):
     """
     n_bytes = len(data.split(8))
     signal = signal_field.encode(data_rate, length_bytes=n_bytes)
-    signal = convolutional_coding.encode(signal, '1/2')
+    signal = convolutional_coding.do(signal, '1/2')
     signal = interleaving.apply(signal, coded_bits_ofdm_symbol=48, coded_bits_subcarrier=1)
     signal = modulation.bits_to_symbols(signal, bits_per_symbol=1)
     signal = ofdm.modulate(signal, index_in_package=0)
@@ -87,7 +87,7 @@ def transmit(data: bits, data_rate:int):
     some of the encoder output string (chosen according to “puncturing pattern”) to reach the “coding
     rate” corresponding to the TXVECTOR parameter RATE. Refer to 17.3.5.6 for details.
     """
-    data = convolutional_coding.encode(data, conf.coding_rate)
+    data = convolutional_coding.do(data, conf.coding_rate)
 
     """
     h) Divide the encoded bit string into groups of 'coded_bits_symbol' bits. Within each group, perform an

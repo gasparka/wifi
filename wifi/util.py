@@ -5,6 +5,11 @@ logging.basicConfig(level=logging.DEBUG)
 log = logging.getLogger('util')
 
 
+def is_divisible(x, by):
+    return len(x) != 0 and len(x) % by == 0
+
+
+
 class Bits(str):
     def __new__(cls, val: str):
         if val[0:2] in ('0x', '0X'):

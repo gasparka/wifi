@@ -74,7 +74,7 @@ def receiver(iq):
     signal_symbols = ofdm.demodulate(signal, equalizer, index_in_package=0)
     data_bits = symbols_to_bits(signal_symbols, bits_per_symbol=1)
     data_bits = interleaving.undo(data_bits, coded_bits_ofdm_symbol=48, coded_bits_subcarrier=1)
-    data_bits = convolutional_coding.decode(data_bits)
+    data_bits = convolutional_coding.undo(data_bits)
     data_rate, length_bytes = signal_field.decode(data_bits)
     conf = Config.from_data_rate(data_rate)
     # modulation, coding_rate, coded_bits_subcarrier, coded_bits_symbol, data_bits_symbol = get_params_from_rate(
@@ -93,7 +93,7 @@ def receiver(iq):
     data_bits = bits([symbols_to_bits(symbol, bits_per_symbol=conf.coded_bits_per_carrier_symbol)
                       for symbol in data_symbols])
     data_bits = interleaving.undo(data_bits, conf.coded_bits_per_ofdm_symbol, conf.coded_bits_per_carrier_symbol)
-    data_bits = convolutional_coding.decode(data_bits, conf.coding_rate)
+    data_bits = convolutional_coding.undo(data_bits, conf.coding_rate)
     data_bits = scrambler.undo(data_bits)
     data_bits = data_bits[16:16 + length_bytes * 8]
     # data_symbols = None
