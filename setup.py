@@ -19,5 +19,6 @@ setup(
                       'pytest-cov',
                       'numpy',
                       'scipy',
-                      'dataclasses'],
+                      'dataclasses',
+                      'numba'],
 )
