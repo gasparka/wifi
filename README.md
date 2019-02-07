@@ -1,0 +1,2 @@
+[![Build Status](https://travis-ci.org/gasparka/wifi.svg?branch=master)](https://travis-ci.org/gasparka/wifi)
+[![Coverage Status](https://coveralls.io/repos/github/gasparka/wifi/badge.svg?branch=master)](https://coveralls.io/github/gasparka/wifi?branch=master)

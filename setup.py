@@ -1,16 +1,11 @@
 import sys
-
-from pkg_resources import parse_requirements
 from setuptools import setup, find_packages
 
 if sys.version_info < (3, 6):
     sys.exit('Sorry, Python < 3.6 is not supported')
 
-with open('README.rst') as readme_file:
+with open('README.md') as readme_file:
     readme = readme_file.read()
-
-install_reqs = parse_requirements('requirements.txt')
-requirements = [str(ir.req) for ir in install_reqs]
 
 setup(
     name='wifi',
@@ -20,5 +15,9 @@ setup(
     author_email='gkarm@live.com',
     description='Wifi PHY implementation in Python',
     packages=find_packages(),
-    install_requires=[],
+    install_requires=['pytest',
+                      'pytest-cov',
+                      'numpy',
+                      'scipy',
+                      'dataclasses'],
 )
