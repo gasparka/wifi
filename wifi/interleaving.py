@@ -56,16 +56,16 @@ def apply(data: bits, coded_bits_ofdm_symbol: int, coded_bits_subcarrier: int) -
     return bits(result)
 
 
-def undo(data: bits, coded_bits_symbol: int, coded_bits_subcarrier: int) -> bits:
+def undo(data: bits, coded_bits_ofdm_symbol: int, coded_bits_subcarrier: int) -> bits:
     def do(data):
-        table = second_permute(coded_bits_symbol, coded_bits_subcarrier)
+        table = second_permute(coded_bits_ofdm_symbol, coded_bits_subcarrier)
         first_result = data[table]
 
-        table = first_permute(coded_bits_symbol)
+        table = first_permute(coded_bits_ofdm_symbol)
         second_result = first_result[table]
         return second_result
 
-    result = [do(chunk) for chunk in data.split(coded_bits_symbol)]
+    result = [do(chunk) for chunk in data.split(coded_bits_ofdm_symbol)]
 
     return bits(result)
 

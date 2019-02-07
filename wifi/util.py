@@ -1,7 +1,6 @@
 import logging
 import numpy as np
 
-
 logging.basicConfig(level=logging.DEBUG)
 log = logging.getLogger('util')
 
@@ -128,6 +127,7 @@ def timing_offset(tx, delay):
 
 
 def moving_average(inputs, window_len):
+    from scipy import signal
     taps = [1 / window_len] * window_len
     return signal.lfilter(taps, [1.0], inputs)
 

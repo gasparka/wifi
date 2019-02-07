@@ -51,7 +51,7 @@ def encode(data: bits, coding_rate='1/2') -> bits:
     return bits(output)
 
 
-@njit()
+@njit(cache=True)
 def trellis_kernel(rx):
     """
     Each node in the trellis has 2 static parents (inputs from previous stage), also outputs are static. This LUT

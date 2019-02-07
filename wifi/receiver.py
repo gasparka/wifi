@@ -5,11 +5,10 @@ from typing import Tuple
 import numpy as np
 import pytest
 
-from wifi import scrambler, convolutional_coding, signal_field, ofdm
-from wifi.interleaving import apply
+from wifi import scrambler, convolutional_coding, signal_field, ofdm, bits, interleaving
+from wifi.config import Config
 from wifi.modulation import symbols_to_bits
 from wifi.preamble import long_training_symbol
-from wifi.scrambler import apply
 from wifi.transmitter import transmit
 from wifi.util import moving_average, hex_to_bitstr, awgn, evm_db2
 
@@ -72,15 +71,16 @@ def receiver(iq):
     """ Signal field demodulation - this gives us the data rate for the payload and also the payload length """
     signal = iq[128: 128 + 80]
     signal_symbols = ofdm.demodulate(signal, equalizer, index_in_package=0)
-    bits = symbols_to_bits(signal_symbols, bits_per_symbol=1)
-    bits = apply(bits, coded_bits_ofdm_symbol=48, coded_bits_subcarrier=1, undo=True)
-    bits = convolutional_coding.decode(bits)
-    data_rate, length_bytes = signal_field.decode(bits)
-    modulation, coding_rate, coded_bits_subcarrier, coded_bits_symbol, data_bits_symbol = get_params_from_rate(
-        data_rate)
-    n_ofdm_symbols = int(np.ceil((length_bytes * 8 + 22) / data_bits_symbol))
+    data_bits = symbols_to_bits(signal_symbols, bits_per_symbol=1)
+    data_bits = interleaving.undo(data_bits, coded_bits_ofdm_symbol=48, coded_bits_subcarrier=1)
+    data_bits = convolutional_coding.decode(data_bits)
+    data_rate, length_bytes = signal_field.decode(data_bits)
+    conf = Config.from_data_rate(data_rate)
+    # modulation, coding_rate, coded_bits_subcarrier, coded_bits_symbol, data_bits_symbol = get_params_from_rate(
+    #     data_rate)
+    n_ofdm_symbols = int(np.ceil((length_bytes * 8 + 22) / conf.data_bits_per_ofdm_symbol))
     logger.info(
-        f'Package {length_bytes} bytes -> {n_ofdm_symbols} OFDM symbols @ {data_rate}MB/s ({modulation}, {coding_rate})')
+        f'Package {length_bytes} bytes -> {n_ofdm_symbols} OFDM symbols @ {data_rate}MB/s ({conf.modulation}, {conf.coding_rate})')
 
     """ Payload demodulation """
     signal_end = 128 + 80
@@ -89,12 +89,12 @@ def receiver(iq):
                              for i, group in enumerate(data_groups)])
 
     """ Symbols to bits flow """
-    bits = [symbols_to_bits(symbol, bits_per_symbol=coded_bits_subcarrier)
-            for symbol in data_symbols]
-    bits = ''.join(apply(b, coded_bits_symbol, coded_bits_subcarrier, undo=True) for b in bits)
-    bits = convolutional_coding.decode(bits, coding_rate)
-    bits = apply(bits)
-    bits = bits[16:16 + length_bytes * 8]
+    data_bits = bits([symbols_to_bits(symbol, bits_per_symbol=conf.coded_bits_per_carrier_symbol)
+            for symbol in data_symbols])
+    data_bits = interleaving.undo(data_bits, conf.coded_bits_per_ofdm_symbol, conf.coded_bits_per_carrier_symbol)
+    data_bits = convolutional_coding.decode(data_bits, conf.coding_rate)
+    data_bits = scrambler.undo(data_bits)
+    data_bits = data_bits[16:16 + length_bytes * 8]
     # data_symbols = None
 
     result = Packet(equalizer,
@@ -102,15 +102,15 @@ def receiver(iq):
                     data_rate,
                     n_ofdm_symbols,
                     length_bytes,
-                    modulation,
-                    coding_rate,
-                    (data_symbols, coded_bits_subcarrier),
-                    bits)
+                    conf.modulation,
+                    conf.coding_rate,
+                    (data_symbols, conf.coded_bits_per_carrier_symbol),
+                    data_bits)
     return result
 
 
 def test_packet_detector():
-    iq = np.load('/home/gaspar/git/ieee80211phy/data/limemini_lime_air.npy')
+    iq = np.load('/home/gaspar/git/wifi/data/limemini_lime_air.npy')
     iq = np.hstack([iq, iq, iq, iq])
     indexes = packet_detector(iq)
     assert indexes == [48075, 148075, 248075, 348075]
@@ -119,14 +119,13 @@ def test_packet_detector():
 @pytest.mark.parametrize('data_rate', [6, 9, 12, 18, 24, 36, 48, 54])
 def test_loopback(data_rate):
     np.random.seed(0)
-    tx = '0x0402002E006008CD37A60020D6013CF1006008AD3BAF00004A6F792C2062726967687420737061726B206F6620646976696E6974792C0A4461756768746572206F6620456C797369756D2C0A466972652D696E73697265642077652074726561673321B6'
-    tx_bits = hex_to_bitstr(tx)
-    iq = transmit(tx_bits, data_rate)
+    data_bits = bits('0x0402002E006008CD37A60020D6013CF1006008AD3BAF00004A6F792C2062726967687420737061726B206F6620646976696E6974792C0A4461756768746572206F6620456C797369756D2C0A466972652D696E73697265642077652074726561673321B6')
+    iq = transmit(data_bits, data_rate)
     iq = awgn(iq, 20)
 
     i = packet_detector(iq)[0]
     packet = receiver(iq[i - 2:])
-    assert packet.bits == tx_bits
+    assert packet.bits == data_bits
 
 
 def test_evm_limemini():
@@ -135,7 +134,7 @@ def test_evm_limemini():
     Package 4095 bytes, 228 OFDM symbols, data_rate=36, modulation=16-QAM, coding_rate=3/4
     """
 
-    iq = np.load('/home/gaspar/git/ieee80211phy/data/limemini_air.npy')
+    iq = np.load('/home/gaspar/git/wifi/data/limemini_air.npy')
     i = packet_detector(iq)[0]
     packet = receiver(iq[i - 2:])
 
@@ -144,7 +143,7 @@ def test_evm_limemini():
 
 
 def test_evm2():
-    iq = np.load('/home/gaspar/git/ieee80211phy/data/sym8_rate24.npy')
+    iq = np.load('/home/gaspar/git/wifi/data/sym8_rate24.npy')
     i = packet_detector(iq)[0]
     packet = receiver(iq[i - 2:])
 
@@ -154,7 +153,7 @@ def test_evm2():
 
 def test_evm3():
     """ This one has weird Sin shape EVM vs time.. sampling errro? """
-    iq = np.load('/home/gaspar/git/ieee80211phy/data/sym130_rate24.npy')
+    iq = np.load('/home/gaspar/git/wifi/data/sym130_rate24.npy')
     i = packet_detector(iq)[0]
     packet = receiver(iq[i - 2:])
 
@@ -164,7 +163,7 @@ def test_evm3():
 
 def test_evm4():
     """ This one has weird Sin shape EVM vs time.. sampling errro? """
-    iq = np.load('/home/gaspar/git/ieee80211phy/data/sym173_rate18.npy')
+    iq = np.load('/home/gaspar/git/wifi/data/sym173_rate18.npy')
     i = packet_detector(iq)[0]
     packet = receiver(iq[i - 3:])
 
@@ -173,7 +172,7 @@ def test_evm4():
 
 
 def test_evm5():
-    iq = np.load('/home/gaspar/git/ieee80211phy/data/sym16_rate48.npy')
+    iq = np.load('/home/gaspar/git/wifi/data/sym16_rate48.npy')
     i = packet_detector(iq)[0]
     packet = receiver(iq[i - 3:])
 
@@ -186,11 +185,11 @@ def test_evm5():
 #     was best corrected using the pilot symbols!
 #     """
 #
-#     iq = np.load('/home/gaspar/git/ieee80211phy/data/limemini_lime_air.npy')
+#     iq = np.load('/home/gaspar/git/wifi/data/limemini_lime_air.npy')
 #     r = Receiver(sample_advance=-3)
 #     symbols = r.main(iq, n_symbols=229)
 #
-#     from ieee80211phy.transmitter.subcarrier_modulation_mapping import mapper_decide
+#     from wifi.transmitter.subcarrier_modulation_mapping import mapper_decide
 #     reference_symbols = np.array([[mapper_decide(j, 4) for j in x] for x in symbols])
 #     evm = evm_db(symbols, reference_symbols)
 #     assert int(evm) == -26
