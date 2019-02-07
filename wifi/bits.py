@@ -77,7 +77,7 @@ class bits:
         >>> a[0]
         '0'
         >>> type(a[0])
-        <class 'bits.bits'>
+        <class 'wifi.bits.bits'>
         >>> a[0, 2]
         '00'
         """
