@@ -43,8 +43,8 @@ def default_iee80211_package():
                  '6976696E6974792C0A4461756768746572206F6620456C797369756D2C0A466972652D696E73697265642077652074'
                  '726561673321B6')
 
-    from wifi.transmitter import transmitter
-    return input, transmitter(Bits(input), data_rate=24)
+    from wifi.transmitter import transmit
+    return input, transmit(Bits(input), data_rate=24)
 
 
 def bit_error_rate(snr):

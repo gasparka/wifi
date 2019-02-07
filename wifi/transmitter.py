@@ -8,7 +8,7 @@ from wifi.preamble import short_training_sequence, long_training_sequence
 log = logging.getLogger(__name__)
 
 
-def transmitter(data: bits, data_rate:int ):
+def transmit(data: bits, data_rate:int):
     """
     a) Produce the PHY Preamble field, composed of 10 repetitions of a “short training sequence” (used
     for AGC convergence, diversity selection, timing acquisition, and coarse frequency acquisition in
@@ -110,7 +110,10 @@ def transmitter(data: bits, data_rate:int ):
     and 22 to 26. The subcarriers –21, –7, 7, and 21 are skipped and, subsequently, used for inserting
     pilot subcarriers. The 0 subcarrier, associated with center frequency, is omitted and filled with the
     value 0. Refer to 17.3.5.10 for details.
+    """
+    data = np.array(data).reshape((-1, 48))
 
+    """
     k) Four subcarriers are inserted as pilots into positions –21, –7, 7, and 21.
     Refer to 17.3.5.9 for details.
 
@@ -120,7 +123,7 @@ def transmitter(data: bits, data_rate:int ):
     applying time domain windowing. Refer to 17.3.5.10 for details.
     """
     data = [ofdm.modulate(ofdm_symbol, index_in_package=i + 1)  # + 1 because signal field was already modulated!
-            for i, ofdm_symbol in enumerate(data.reshape((-1, 48)))]
+            for i, ofdm_symbol in enumerate(data)]
 
     """
     m) Append the OFDM symbols one after another, starting after the SIGNAL symbol describing the
@@ -153,7 +156,7 @@ def test_annexi():
     input = bits('0x0402002E006008CD37A60020D6013CF1006008AD3BAF00004A6F792C2062726967687420737061726B206F66206469766'
                  '96E6974792C0A4461756768746572206F6620456C797369756D2C0A466972652D696E73697265642077652074726561673321B6')
 
-    output = transmitter(input, data_rate=36)
+    output = transmit(input, data_rate=36)
     output = np.round(output, 3)
 
     # Table I-22—Time domain representation of the short training sequence

@@ -10,7 +10,7 @@ from wifi.interleaving import apply
 from wifi.modulation import symbols_to_bits
 from wifi.preamble import long_training_symbol
 from wifi.scrambler import apply
-from wifi.transmitter import transmitter
+from wifi.transmitter import transmit
 from wifi.util import moving_average, hex_to_bitstr, awgn, evm_db2
 
 logger = logging.getLogger(__name__)
@@ -121,7 +121,7 @@ def test_loopback(data_rate):
     np.random.seed(0)
     tx = '0x0402002E006008CD37A60020D6013CF1006008AD3BAF00004A6F792C2062726967687420737061726B206F6620646976696E6974792C0A4461756768746572206F6620456C797369756D2C0A466972652D696E73697265642077652074726561673321B6'
     tx_bits = hex_to_bitstr(tx)
-    iq = transmitter(tx_bits, data_rate)
+    iq = transmit(tx_bits, data_rate)
     iq = awgn(iq, 20)
 
     i = packet_detector(iq)[0]
