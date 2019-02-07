@@ -52,7 +52,7 @@ def encode(data: bits, coding_rate='1/2') -> bits:
 
 
 @njit(cache=True)
-def trellis_kernel(rx):
+def trellis_kernel(rx): # pragma: no cover
     """
     Each node in the trellis has 2 static parents (inputs from previous stage), also outputs are static. This LUT
     provides the parent IDs and the output values. Format: (parent1 id, parent1 output, parent2_id, parent2_output)

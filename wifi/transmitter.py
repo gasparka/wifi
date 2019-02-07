@@ -73,7 +73,7 @@ def transmit(data: bits, data_rate:int):
     scrambler with a pseudorandom nonzero seed and generate a scrambling sequence. 
     XOR the scrambling sequence with the extended string of data bits. Refer to 17.3.5.5 for details.
     """
-    data = scrambler.apply(data)
+    data = scrambler.do(data)
 
     """ 
     f) Replace the six scrambled zero bits following the data with six nonscrambled zero bits.

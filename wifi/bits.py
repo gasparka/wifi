@@ -35,7 +35,19 @@ class bits:
 
         >>> bits('0x1234')
         '0001001000110100'
+
+        >>> bits(b'')
+        ''
+
+        >>> bits(b'tere')
+        '01110100011001010111001001100101'
+
         """
+        if isinstance(val, bytes):
+            val = val.hex()
+            if val != '':
+                val = '0x' + val
+
         if isinstance(val, list):
             import operator, functools
             val = functools.reduce(operator.add, val)
@@ -76,8 +88,6 @@ class bits:
         >>> a = bits('01001')
         >>> a[0]
         '0'
-        >>> type(a[0])
-        <class 'wifi.bits.bits'>
         >>> a[0, 2]
         '00'
         """

@@ -3,12 +3,12 @@ The DATA field, composed of SERVICE, PSDU, tail, and pad parts, shall be scrambl
 PPDU-synchronous scrambler. The octets of the PSDU are placed in the transmit serial bit stream, bit 0 first
 and bit 7 last.
 """
-
-
+from hypothesis import given
+from hypothesis._strategies import binary
 from wifi.bits import bits
 
 
-def apply(data: bits) -> bits:
+def do(data: bits) -> bits:
     output = bits('')
     shr = bits('1011101')
     for bit in data:
@@ -19,7 +19,7 @@ def apply(data: bits) -> bits:
 
 
 def undo(scrambled: bits) -> bits:
-    return apply(scrambled)
+    return do(scrambled)
 
 
 def test_i152():
@@ -50,7 +50,7 @@ def test_i152():
                   '000101110011100100010101101000001110110010010101000101101001000100010000000000001101110001111'
                   '111000011101111001011001001')
 
-    output = apply(input)
+    output = do(input)
 
     # test against standard -> restore the tail bits to 0
     tail_zeroed = list(output)
@@ -62,3 +62,8 @@ def test_i152():
     rev = undo(output)
     assert rev == input
 
+
+@given(binary())
+def test_hypothesis_loop(s):
+    s = bits(s)
+    assert undo(do(s)) == s

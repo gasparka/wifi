@@ -20,5 +20,6 @@ setup(
                       'numpy',
                       'scipy',
                       'dataclasses',
-                      'numba'],
+                      'numba',
+                      'hypothesis'],
 )
