@@ -8,7 +8,7 @@ The normalization factor depends on the base modulation mode. Note that the modu
 from the start to the end of the transmission, as the signal changes from SIGNAL to DATA.
 The purpose of the normalization factor is to achieve the same average power for all mappings.
 """
-from typing import List, _alias
+from typing import List, NewType
 import numpy as np
 from wifi.bits import bits
 
@@ -38,14 +38,14 @@ LUT = {1: BPSK_LUT,
        6: QAM64_LUT}
 
 
-Symbol = _alias(complex, ())
+Symbol = NewType('Symbol', complex)
 Symbol.__doc__ = """ Frequency domain value, used to modulate individual OFDM carrier """
 
 
 def bits_to_symbols(data: bits, bits_per_symbol: int) -> List[Symbol]:
     bit_groups = data.split(bits_per_symbol)
     indexes = [group.astype(int) for group in bit_groups]
-    symbols = [Symbol(LUT[bits_per_symbol][index]) for index in indexes]
+    symbols = [LUT[bits_per_symbol][index] for index in indexes]
     return symbols
 
 

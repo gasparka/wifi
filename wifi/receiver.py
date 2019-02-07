@@ -1,4 +1,5 @@
 import logging
+import os
 from dataclasses import dataclass
 from typing import Tuple
 
@@ -90,7 +91,7 @@ def receiver(iq):
 
     """ Symbols to bits flow """
     data_bits = bits([symbols_to_bits(symbol, bits_per_symbol=conf.coded_bits_per_carrier_symbol)
-            for symbol in data_symbols])
+                      for symbol in data_symbols])
     data_bits = interleaving.undo(data_bits, conf.coded_bits_per_ofdm_symbol, conf.coded_bits_per_carrier_symbol)
     data_bits = convolutional_coding.decode(data_bits, conf.coding_rate)
     data_bits = scrambler.undo(data_bits)
@@ -110,7 +111,7 @@ def receiver(iq):
 
 
 def test_packet_detector():
-    iq = np.load('/home/gaspar/git/wifi/data/limemini_lime_air.npy')
+    iq = np.load(dir_path + '../data/limemini_lime_air.npy')
     iq = np.hstack([iq, iq, iq, iq])
     indexes = packet_detector(iq)
     assert indexes == [48075, 148075, 248075, 348075]
@@ -119,7 +120,8 @@ def test_packet_detector():
 @pytest.mark.parametrize('data_rate', [6, 9, 12, 18, 24, 36, 48, 54])
 def test_loopback(data_rate):
     np.random.seed(0)
-    data_bits = bits('0x0402002E006008CD37A60020D6013CF1006008AD3BAF00004A6F792C2062726967687420737061726B206F6620646976696E6974792C0A4461756768746572206F6620456C797369756D2C0A466972652D696E73697265642077652074726561673321B6')
+    data_bits = bits(
+        '0x0402002E006008CD37A60020D6013CF1006008AD3BAF00004A6F792C2062726967687420737061726B206F6620646976696E6974792C0A4461756768746572206F6620456C797369756D2C0A466972652D696E73697265642077652074726561673321B6')
     iq = transmit(data_bits, data_rate)
     iq = awgn(iq, 20)
 
@@ -128,13 +130,16 @@ def test_loopback(data_rate):
     assert packet.bits == data_bits
 
 
+dir_path = os.path.dirname(os.path.realpath(__file__)) + '/'
+
+
 def test_evm_limemini():
     """
     Recorded with a single LimeSDR-Mini - same device guarantees 0 freq and sampling offset!
     Package 4095 bytes, 228 OFDM symbols, data_rate=36, modulation=16-QAM, coding_rate=3/4
     """
 
-    iq = np.load('/home/gaspar/git/wifi/data/limemini_air.npy')
+    iq = np.load(dir_path + '../data/limemini_air.npy')
     i = packet_detector(iq)[0]
     packet = receiver(iq[i - 2:])
 
@@ -143,7 +148,7 @@ def test_evm_limemini():
 
 
 def test_evm2():
-    iq = np.load('/home/gaspar/git/wifi/data/sym8_rate24.npy')
+    iq = np.load(dir_path + '../data/sym8_rate24.npy')
     i = packet_detector(iq)[0]
     packet = receiver(iq[i - 2:])
 
@@ -153,7 +158,7 @@ def test_evm2():
 
 def test_evm3():
     """ This one has weird Sin shape EVM vs time.. sampling errro? """
-    iq = np.load('/home/gaspar/git/wifi/data/sym130_rate24.npy')
+    iq = np.load(dir_path + '../data/sym130_rate24.npy')
     i = packet_detector(iq)[0]
     packet = receiver(iq[i - 2:])
 
@@ -163,7 +168,7 @@ def test_evm3():
 
 def test_evm4():
     """ This one has weird Sin shape EVM vs time.. sampling errro? """
-    iq = np.load('/home/gaspar/git/wifi/data/sym173_rate18.npy')
+    iq = np.load(dir_path + '../data/sym173_rate18.npy')
     i = packet_detector(iq)[0]
     packet = receiver(iq[i - 3:])
 
@@ -172,7 +177,7 @@ def test_evm4():
 
 
 def test_evm5():
-    iq = np.load('/home/gaspar/git/wifi/data/sym16_rate48.npy')
+    iq = np.load(dir_path + '../data/sym16_rate48.npy')
     i = packet_detector(iq)[0]
     packet = receiver(iq[i - 3:])
 
