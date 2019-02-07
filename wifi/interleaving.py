@@ -11,20 +11,20 @@ import numpy as np
 from wifi.bits import bits
 
 
-def first_permute(coded_bits_symbol: int) -> List[int]:
+def first_permute(coded_bits_ofdm_symbol: int) -> List[int]:
     """ The first permutation causes adjacent coded bits to be mapped onto nonadjacent subcarriers. """
-    lut = [int((coded_bits_symbol / 16) * (k % 16) + np.floor(k / 16))
-           for k in range(coded_bits_symbol)]
+    lut = [int((coded_bits_ofdm_symbol / 16) * (k % 16) + np.floor(k / 16))
+           for k in range(coded_bits_ofdm_symbol)]
     return lut
 
 
-def second_permute(coded_bits_symbol: int, coded_bits_subcarrier: int) -> List[int]:
+def second_permute(coded_bits_ofdm_symbol: int, coded_bits_subcarrier: int) -> List[int]:
     """ The second permutation causes adjacent coded bits to be mapped alternately onto less and more significant bits of the
     constellation and, thereby, long runs of low reliability (LSB) bits are avoided. """
 
     s = max(coded_bits_subcarrier / 2, 1)
-    lut = [int(s * np.floor(i / s) + (i + coded_bits_symbol - np.floor((16 * i) / coded_bits_symbol)) % s)
-           for i in range(coded_bits_symbol)]
+    lut = [int(s * np.floor(i / s) + (i + coded_bits_ofdm_symbol - np.floor((16 * i) / coded_bits_ofdm_symbol)) % s)
+           for i in range(coded_bits_ofdm_symbol)]
     return lut
 
 
@@ -34,30 +34,40 @@ def inverse_permute(x: List[int]) -> List[int]:
     return result.tolist()
 
 
-def apply(data: bits, coded_bits_symbol: int, coded_bits_subcarrier: int) -> bits:
+def apply(data: bits, coded_bits_ofdm_symbol: int, coded_bits_subcarrier: int) -> bits:
     """
     Divide the encoded bit string into groups of NCBPS bits. Within each group, perform an
     “interleaving” (reordering) of the bits according to a rule corresponding to the TXVECTOR
     parameter RATE. Refer to 17.3.5.7 for details.
     """
 
-    table = first_permute(coded_bits_symbol)
-    table = inverse_permute(table)
-    first_result = data[table]
+    def do(data):
+        table = first_permute(coded_bits_ofdm_symbol)
+        table = inverse_permute(table)
+        first_result = data[table]
 
-    table = second_permute(coded_bits_symbol, coded_bits_subcarrier)
-    table = inverse_permute(table)
-    second_result = first_result[table]
-    return second_result
+        table = second_permute(coded_bits_ofdm_symbol, coded_bits_subcarrier)
+        table = inverse_permute(table)
+        second_result = first_result[table]
+        return second_result
+
+    result = [do(chunk) for chunk in data.split(coded_bits_ofdm_symbol)]
+
+    return bits(result)
 
 
 def undo(data: bits, coded_bits_symbol: int, coded_bits_subcarrier: int) -> bits:
-    table = second_permute(coded_bits_symbol, coded_bits_subcarrier)
-    first_result = data[table]
+    def do(data):
+        table = second_permute(coded_bits_symbol, coded_bits_subcarrier)
+        first_result = data[table]
 
-    table = first_permute(coded_bits_symbol)
-    second_result = first_result[table]
-    return second_result
+        table = first_permute(coded_bits_symbol)
+        second_result = first_result[table]
+        return second_result
+
+    result = [do(chunk) for chunk in data.split(coded_bits_symbol)]
+
+    return bits(result)
 
 
 def test_first_permutation_table():
@@ -98,6 +108,20 @@ def test_i143():
 
     # IEEE Std 802.11-2016: Table I-9—SIGNAL field bits after interleaving
     expect = bits('100101001101000000010100100000110010010010010100')
+    result = apply(input, 48, 1)
+    assert result == expect
+
+    # test reverse
+    result = undo(expect, 48, 1)
+    assert result == input
+
+
+def test_two_symbols():
+    """ 2 symbols of test_i143 """
+
+    input = bits('110100011010000100000010001111100111000000000000110100011010000100000010001111100111000000000000')
+
+    expect = bits('100101001101000000010100100000110010010010010100100101001101000000010100100000110010010010010100')
     result = apply(input, 48, 1)
     assert result == expect
 

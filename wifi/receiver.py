@@ -63,6 +63,7 @@ class Packet:
 
 # @profile
 def receiver(iq):
+    # TODO: tx -> rx loop should work
     """ Channel estimation - calculate how much the known symbols have changed and produce inverse channel """
     avg_train = (iq[:64] + iq[64:128]) / 2
     channel_estimate = np.fft.fft(avg_train) / long_training_symbol()
@@ -72,7 +73,7 @@ def receiver(iq):
     signal = iq[128: 128 + 80]
     signal_symbols = ofdm.demodulate(signal, equalizer, index_in_package=0)
     bits = symbols_to_bits(signal_symbols, bits_per_symbol=1)
-    bits = apply(bits, coded_bits_symbol=48, coded_bits_subcarrier=1, undo=True)
+    bits = apply(bits, coded_bits_ofdm_symbol=48, coded_bits_subcarrier=1, undo=True)
     bits = convolutional_coding.decode(bits)
     data_rate, length_bytes = signal_field.decode(bits)
     modulation, coding_rate, coded_bits_subcarrier, coded_bits_symbol, data_bits_symbol = get_params_from_rate(

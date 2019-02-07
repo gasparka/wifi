@@ -1,11 +1,9 @@
 import logging
-from textwrap import wrap
 import numpy as np
-from wifi import convolutional_coding, signal_field, ofdm, interleaving, modulation
+from wifi import convolutional_coding, signal_field, ofdm, interleaving, modulation, scrambler
 from wifi.bits import bits
 from wifi.config import Config
 from wifi.preamble import short_training_sequence, long_training_sequence
-from wifi.scrambler import apply
 
 log = logging.getLogger(__name__)
 
@@ -32,7 +30,7 @@ def transmitter(data: bits, data_rate:int ):
     n_bytes = len(data.split(8))
     signal = signal_field.encode(data_rate, length_bytes=n_bytes)
     signal = convolutional_coding.encode(signal, '1/2')
-    signal = interleaving.apply(signal, coded_bits_symbol=48, coded_bits_subcarrier=1)
+    signal = interleaving.apply(signal, coded_bits_ofdm_symbol=48, coded_bits_subcarrier=1)
     signal = modulation.bits_to_symbols(signal, bits_per_symbol=1)
     signal = ofdm.modulate(signal, index_in_package=0)
 
@@ -42,8 +40,6 @@ def transmitter(data: bits, data_rate:int ):
     bits per OFDM symbol (N CBPS ). Refer to 17.3.2.3 for details.
     """
     conf = Config.from_data_rate(data_rate)
-    # modulation, coding_rate, coded_bits_subcarrier, \
-    # coded_bits_symbol, data_bits_symbol = get_params_from_rate(data_rate)
 
     """
     d) Append the PSDU to the SERVICE field of the TXVECTOR. Extend the resulting bit string with
@@ -77,7 +73,7 @@ def transmitter(data: bits, data_rate:int ):
     scrambler with a pseudorandom nonzero seed and generate a scrambling sequence. 
     XOR the scrambling sequence with the extended string of data bits. Refer to 17.3.5.5 for details.
     """
-    data = apply(data)
+    data = scrambler.apply(data)
 
     """ 
     f) Replace the six scrambled zero bits following the data with six nonscrambled zero bits.
@@ -98,16 +94,14 @@ def transmitter(data: bits, data_rate:int ):
     “interleaving” (reordering) of the bits according to a rule corresponding to the TXVECTOR
     parameter RATE. Refer to 17.3.5.7 for details.
     """
-    interleaved = [interleaving.apply(bit_group, conf.coded_bits_per_carrier_symbol, conf.coded_bits_per_ofdm_symbol)
-                   for bit_group in data.split(conf.coded_bits_per_carrier_symbol)]
-    data = bits(interleaved)
+    data = interleaving.apply(data, conf.coded_bits_per_ofdm_symbol, conf.coded_bits_per_carrier_symbol)
 
     """
     i) Divide the resulting coded and interleaved data string into groups of 'coded_bits_subcarrier' bits. 
     For each of the bit groups, convert the bit group into a complex number according to the modulation encoding tables.
     Refer to 17.3.5.8 for details.
     """
-    data = bits_to_symbols(data, conf.coded_bits_per_carrier_symbol)
+    data = modulation.bits_to_symbols(data, conf.coded_bits_per_carrier_symbol)
 
     """
     j) Divide the complex number string into groups of 48 complex numbers. Each such group is

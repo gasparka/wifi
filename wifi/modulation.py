@@ -43,7 +43,7 @@ Symbol.__doc__ = """ Frequency domain value, used to modulate individual OFDM ca
 
 
 def bits_to_symbols(data: bits, bits_per_symbol: int) -> List[Symbol]:
-    bit_groups = data.reshape((-1, bits_per_symbol))
+    bit_groups = data.split(bits_per_symbol)
     indexes = [group.astype(int) for group in bit_groups]
     symbols = [Symbol(LUT[bits_per_symbol][index]) for index in indexes]
     return symbols

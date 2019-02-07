@@ -153,7 +153,7 @@ class bits:
         3
         """
         if type == int:
-            return int(self.data, 2)
+            return int(str(self.data), 2)
         assert False
 
     def count(self, x):
