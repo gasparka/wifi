@@ -10,7 +10,10 @@ The purpose of the normalization factor is to achieve the same average power for
 """
 from typing import List, NewType
 import numpy as np
+from hypothesis import given, assume
+from hypothesis._strategies import binary, sampled_from
 from wifi.bits import bits
+from wifi.util import is_divisible
 
 BPSK_LUT = np.array([-1 + 0j, 1 + 0j])
 
@@ -42,14 +45,15 @@ Symbol = NewType('Symbol', complex)
 Symbol.__doc__ = """ Frequency domain value, used to modulate individual OFDM carrier """
 
 
-def bits_to_symbols(data: bits, bits_per_symbol: int) -> List[Symbol]:
+def do(data: bits, bits_per_symbol: int) -> List[Symbol]:
+    assume(is_divisible(data, by=bits_per_symbol))
     bit_groups = data.split(bits_per_symbol)
     indexes = [group.astype(int) for group in bit_groups]
     symbols = [LUT[bits_per_symbol][index] for index in indexes]
     return symbols
 
 
-def symbols_to_bits(symbols: List[Symbol], bits_per_symbol: int) -> bits:
+def undo(symbols: List[Symbol], bits_per_symbol: int) -> bits:
     errors = [abs(LUT[bits_per_symbol] - symbol) for symbol in symbols]
     best_indexes = np.argmin(errors, axis=1)
     return bits([bits.from_int(index, bits_per_symbol) for index in best_indexes])
@@ -82,11 +86,11 @@ def test_i163():
                 (-0.949 - 0.949j), (-0.949 - 0.949j), (-0.949 - 0.949j), (0.316 - 0.316j), (0.949 + 0.316j),
                 (-0.949 + 0.316j), (-0.316 + 0.949j), (0.316 - 0.316j)]
 
-    symbols = bits_to_symbols(input, bits_per_symbol=4)
+    symbols = do(input, bits_per_symbol=4)
     np.testing.assert_equal(expected, np.round(symbols, 3))
 
     # test reverse
-    rev = symbols_to_bits(symbols, bits_per_symbol=4)
+    rev = undo(symbols, bits_per_symbol=4)
     assert rev == input
 
 
@@ -102,9 +106,16 @@ def test_i144():
                 (1 + 0j), (-1 + 0j), (-1 + 0j), (1 + 0j), (-1 + 0j), (-1 + 0j), (1 + 0j), (-1 + 0j), (-1 + 0j),
                 (1 + 0j), (-1 + 0j), (-1 + 0j), (1 + 0j), (-1 + 0j), (1 + 0j), (-1 + 0j), (-1 + 0j)]
 
-    symbols = bits_to_symbols(input, bits_per_symbol=1)
+    symbols = do(input, bits_per_symbol=1)
     np.testing.assert_equal(expected, np.round(symbols, 3))
 
     # test reverse
-    rev = symbols_to_bits(symbols, bits_per_symbol=1)
+    rev = undo(symbols, bits_per_symbol=1)
     assert rev == input
+
+
+@given(binary(), sampled_from([1, 2, 4, 6]))
+def test_hypothesis_loop(data, bits_per_symbol):
+    data = bits(data)
+    assert undo(do(data, bits_per_symbol), bits_per_symbol) == data
+

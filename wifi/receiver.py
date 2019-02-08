@@ -6,9 +6,9 @@ from typing import Tuple
 import numpy as np
 import pytest
 
-from wifi import scrambler, convolutional_coding, signal_field, ofdm, bits, interleaving
+from wifi import scrambler, convolutional_coder, signal_field, ofdm, bits, interleaver, puncturer
 from wifi.config import Config
-from wifi.modulation import symbols_to_bits
+from wifi.modulator import undo
 from wifi.preamble import long_training_symbol
 from wifi.transmitter import transmit
 from wifi.util import moving_average, hex_to_bitstr, awgn, evm_db2
@@ -72,9 +72,9 @@ def receiver(iq):
     """ Signal field demodulation - this gives us the data rate for the payload and also the payload length """
     signal = iq[128: 128 + 80]
     signal_symbols = ofdm.demodulate(signal, equalizer, index_in_package=0)
-    data_bits = symbols_to_bits(signal_symbols, bits_per_symbol=1)
-    data_bits = interleaving.undo(data_bits, coded_bits_ofdm_symbol=48, coded_bits_subcarrier=1)
-    data_bits = convolutional_coding.undo(data_bits)
+    data_bits = undo(signal_symbols, bits_per_symbol=1)
+    data_bits = interleaver.undo(data_bits, coded_bits_ofdm_symbol=48, coded_bits_subcarrier=1)
+    data_bits = convolutional_coder.undo(data_bits)
     data_rate, length_bytes = signal_field.decode(data_bits)
     conf = Config.from_data_rate(data_rate)
     # modulation, coding_rate, coded_bits_subcarrier, coded_bits_symbol, data_bits_symbol = get_params_from_rate(
@@ -90,10 +90,11 @@ def receiver(iq):
                              for i, group in enumerate(data_groups)])
 
     """ Symbols to bits flow """
-    data_bits = bits([symbols_to_bits(symbol, bits_per_symbol=conf.coded_bits_per_carrier_symbol)
+    data_bits = bits([undo(symbol, bits_per_symbol=conf.coded_bits_per_carrier_symbol)
                       for symbol in data_symbols])
-    data_bits = interleaving.undo(data_bits, conf.coded_bits_per_ofdm_symbol, conf.coded_bits_per_carrier_symbol)
-    data_bits = convolutional_coding.undo(data_bits, conf.coding_rate)
+    data_bits = interleaver.undo(data_bits, conf.coded_bits_per_ofdm_symbol, conf.coded_bits_per_carrier_symbol)
+    data_bits = puncturer.undo(data_bits, conf.coding_rate)
+    data_bits = convolutional_coder.undo(data_bits)
     data_bits = scrambler.undo(data_bits)
     data_bits = data_bits[16:16 + length_bytes * 8]
     # data_symbols = None

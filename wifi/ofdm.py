@@ -1,7 +1,7 @@
 from typing import List
 import numpy as np
-from wifi import modulation
-from wifi.modulation import Symbol
+from wifi import modulator
+from wifi.modulator import Symbol
 
 PILOT_POLARITY = [1, 1, 1, 1, -1, -1, -1, 1, -1, -1, -1, -1, 1, 1, -1, 1, -1, -1, 1, 1, -1, 1, 1, -1, 1, 1, 1, 1, 1, 1,
                   -1, 1, 1, 1, -1, 1, 1, -1, -1, 1, 1, 1, -1, 1, -1, -1, -1, 1, -1, 1, -1, -1, 1, -1, -1, 1, 1, 1, 1, 1,
@@ -10,7 +10,7 @@ PILOT_POLARITY = [1, 1, 1, 1, -1, -1, -1, 1, -1, -1, -1, -1, 1, 1, -1, 1, -1, -1
                   1, 1, -1, -1, -1, -1, -1, -1, -1]
 
 
-OFDMSymbol = List[modulation.Symbol]
+OFDMSymbol = List[modulator.Symbol]
 OFDMSymbol.__doc__ = """ Contains 48 Symbols, one to modulate each OFDM carrier. """
 
 OFDMFrame = List[complex]
@@ -208,10 +208,10 @@ def demodulate(samples: OFDMFrame, equalizer: np.ndarray, index_in_package: int)
 def test_ofdm_i18():
     # IEEE Std 802.11-2016 - Table I-19—Interleaved bits of first DATA symbol
     from wifi.bits import bits
-    from wifi import modulation
+    from wifi import modulator
     input = bits('0111011111110000111011111100010001110011000000001011111100010001000100001001101000011101000100'
                  '10011011100011100011110101011010010001101101101011100110000100001100000000000011011011001101101101')
-    input_ofdm_symbol = modulation.bits_to_symbols(input, bits_per_symbol=4)
+    input_ofdm_symbol = modulator.do(input, bits_per_symbol=4)
     output = modulate(input_ofdm_symbol, index_in_package=1)
 
     # Table I-25—Time domain representation of the DATA field: symbol 1of 6

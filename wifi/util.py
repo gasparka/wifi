@@ -165,7 +165,7 @@ def evm_db(rx, reference):
 
 
 def evm_db2(rx, bits_per_symbol):
-    from wifi.modulation import symbols_error
+    from wifi.modulator import symbols_error
     rx = np.array(rx).flatten()
     error = symbols_error(rx, bits_per_symbol)
     error_power = np.mean([power(e) for e in error])

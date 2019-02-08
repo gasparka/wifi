@@ -7,6 +7,7 @@ The puncturing patterns are illustrated in Figure 17-9.
 """
 from hypothesis import assume, given
 from hypothesis._strategies import binary, sampled_from
+
 from wifi import bits
 from wifi.util import is_divisible
 
@@ -29,10 +30,10 @@ def undo(data: bits, coding_rate='1/2') -> bits:
     # un-puncturing process i.e. add 'X' bits, which are basically just ignored by the conv decoder
     if coding_rate == '3/4':
         assume(is_divisible(data, by=4))
-        data = [d[:3] + 'XX' + d[3] for d in data.split(4)]
+        data = [d[:3] + '??' + d[3] for d in data.split(4)]
     elif coding_rate == '2/3':
         assume(is_divisible(data, by=3))
-        data = [d + 'X' for d in data.split(3)]
+        data = [d + '?' for d in data.split(3)]
     return bits(data)
 
 

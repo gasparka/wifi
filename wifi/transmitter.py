@@ -1,7 +1,6 @@
 import logging
 import numpy as np
-from wifi import convolutional_coding, signal_field, ofdm, interleaving, modulation, scrambler
-from wifi.bits import bits
+from wifi import convolutional_coder, signal_field, ofdm, interleaver, modulator, scrambler, bits, puncturer
 from wifi.config import Config
 from wifi.preamble import short_training_sequence, long_training_sequence
 
@@ -29,9 +28,9 @@ def transmit(data: bits, data_rate:int):
     """
     n_bytes = len(data.split(8))
     signal = signal_field.encode(data_rate, length_bytes=n_bytes)
-    signal = convolutional_coding.do(signal, '1/2')
-    signal = interleaving.apply(signal, coded_bits_ofdm_symbol=48, coded_bits_subcarrier=1)
-    signal = modulation.bits_to_symbols(signal, bits_per_symbol=1)
+    signal = convolutional_coder.do(signal)
+    signal = interleaver.apply(signal, coded_bits_ofdm_symbol=48, coded_bits_subcarrier=1)
+    signal = modulator.do(signal, bits_per_symbol=1)
     signal = ofdm.modulate(signal, index_in_package=0)
 
     """
@@ -87,21 +86,22 @@ def transmit(data: bits, data_rate:int):
     some of the encoder output string (chosen according to “puncturing pattern”) to reach the “coding
     rate” corresponding to the TXVECTOR parameter RATE. Refer to 17.3.5.6 for details.
     """
-    data = convolutional_coding.do(data, conf.coding_rate)
+    data = convolutional_coder.do(data)
+    data = puncturer.do(data, conf.coding_rate)
 
     """
     h) Divide the encoded bit string into groups of 'coded_bits_symbol' bits. Within each group, perform an
     “interleaving” (reordering) of the bits according to a rule corresponding to the TXVECTOR
     parameter RATE. Refer to 17.3.5.7 for details.
     """
-    data = interleaving.apply(data, conf.coded_bits_per_ofdm_symbol, conf.coded_bits_per_carrier_symbol)
+    data = interleaver.apply(data, conf.coded_bits_per_ofdm_symbol, conf.coded_bits_per_carrier_symbol)
 
     """
     i) Divide the resulting coded and interleaved data string into groups of 'coded_bits_subcarrier' bits. 
     For each of the bit groups, convert the bit group into a complex number according to the modulation encoding tables.
     Refer to 17.3.5.8 for details.
     """
-    data = modulation.bits_to_symbols(data, conf.coded_bits_per_carrier_symbol)
+    data = modulator.do(data, conf.coded_bits_per_carrier_symbol)
 
     """
     j) Divide the complex number string into groups of 48 complex numbers. Each such group is
