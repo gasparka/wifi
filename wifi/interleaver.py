@@ -8,6 +8,10 @@ number of bits in a single OFDM symbol. The interleaver is defined by a two-step
 1. The first permutation causes adjacent coded bits to be mapped onto nonadjacent subcarriers.
 2. The second permutation causes adjacent coded bits to be mapped alternately onto less and more significant bits of the
     constellation and, thereby, long runs of low reliability (LSB) bits are avoided.
+
+Divide the encoded bit string into groups of NCBPS bits. Within each group, perform an
+“interleaving” (reordering) of the bits according to a rule corresponding to the TXVECTOR
+parameter RATE. Refer to 17.3.5.7 for details.
 """
 from typing import List
 import numpy as np
@@ -38,39 +42,24 @@ def inverse_permute(x: List[int]) -> List[int]:
 
 
 def do(data: bits, coded_bits_ofdm_symbol: int, coded_bits_subcarrier: int) -> bits:
-    """
-    Divide the encoded bit string into groups of NCBPS bits. Within each group, perform an
-    “interleaving” (reordering) of the bits according to a rule corresponding to the TXVECTOR
-    parameter RATE. Refer to 17.3.5.7 for details.
-    """
 
-    def do(data):
-        table = first_permute(coded_bits_ofdm_symbol)
-        table = inverse_permute(table)
-        first_result = data[table]
+    table = first_permute(coded_bits_ofdm_symbol)
+    table = inverse_permute(table)
+    first_result = data[table]
 
-        table = second_permute(coded_bits_ofdm_symbol, coded_bits_subcarrier)
-        table = inverse_permute(table)
-        second_result = first_result[table]
-        return second_result
-
-    result = [do(chunk) for chunk in data.split(coded_bits_ofdm_symbol)]
-
-    return bits(result)
+    table = second_permute(coded_bits_ofdm_symbol, coded_bits_subcarrier)
+    table = inverse_permute(table)
+    second_result = first_result[table]
+    return second_result
 
 
 def undo(data: bits, coded_bits_ofdm_symbol: int, coded_bits_subcarrier: int) -> bits:
-    def do(data):
-        table = second_permute(coded_bits_ofdm_symbol, coded_bits_subcarrier)
-        first_result = data[table]
+    table = second_permute(coded_bits_ofdm_symbol, coded_bits_subcarrier)
+    first_result = data[table]
 
-        table = first_permute(coded_bits_ofdm_symbol)
-        second_result = first_result[table]
-        return second_result
-
-    result = [do(chunk) for chunk in data.split(coded_bits_ofdm_symbol)]
-
-    return bits(result)
+    table = first_permute(coded_bits_ofdm_symbol)
+    second_result = first_result[table]
+    return second_result
 
 
 def test_first_permutation_table():
@@ -111,20 +100,6 @@ def test_i143():
 
     # IEEE Std 802.11-2016: Table I-9—SIGNAL field bits after interleaving
     expect = bits('100101001101000000010100100000110010010010010100')
-    result = do(input, 48, 1)
-    assert result == expect
-
-    # test reverse
-    result = undo(expect, 48, 1)
-    assert result == input
-
-
-def test_two_symbols():
-    """ 2 symbols of test_i143 """
-
-    input = bits('110100011010000100000010001111100111000000000000110100011010000100000010001111100111000000000000')
-
-    expect = bits('100101001101000000010100100000110010010010010100100101001101000000010100100000110010010010010100')
     result = do(input, 48, 1)
     assert result == expect
 

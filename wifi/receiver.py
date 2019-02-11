@@ -89,7 +89,11 @@ def receiver(iq):
     """ Symbols to bits flow """
     data_bits = bits([modulator.undo(symbol, bits_per_symbol=conf.coded_bits_per_carrier_symbol)
                       for symbol in data_symbols])
-    data_bits = interleaver.undo(data_bits, conf.coded_bits_per_ofdm_symbol, conf.coded_bits_per_carrier_symbol)
+
+    interleaving_groups = data_bits.split(conf.coded_bits_per_ofdm_symbol)
+    data_bits = bits([interleaver.undo(group, conf.coded_bits_per_ofdm_symbol, conf.coded_bits_per_carrier_symbol)
+                      for group in interleaving_groups])
+    # data_bits = interleaver.undo(data_bits, conf.coded_bits_per_ofdm_symbol, conf.coded_bits_per_carrier_symbol)
     data_bits = puncturer.undo(data_bits, conf.coding_rate)
     data_bits = convolutional_coder.undo(data_bits)
     data_bits = scrambler.undo(data_bits)

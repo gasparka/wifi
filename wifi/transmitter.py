@@ -73,9 +73,12 @@ def transmit(data: bits, data_rate: int):
     """
     h) Divide the encoded bit string into groups of 'coded_bits_symbol' bits. Within each group, perform an
     “interleaving” (reordering) of the bits according to a rule corresponding to the TXVECTOR
-    parameter RATE. Refer to 17.3.5.7 for details.
+    parameter RATE. 
+    Refer to 17.3.5.7 for details.
     """
-    data = interleaver.do(data, conf.coded_bits_per_ofdm_symbol, conf.coded_bits_per_carrier_symbol)
+    data = [interleaver.do(interleaving_group, conf.coded_bits_per_ofdm_symbol, conf.coded_bits_per_carrier_symbol)
+            for interleaving_group in data.split(conf.coded_bits_per_ofdm_symbol)]
+    data = bits(data)
 
     """
     i) Divide the resulting coded and interleaved data string into groups of 'coded_bits_subcarrier' bits. 
@@ -98,10 +101,9 @@ def transmit(data: bits, data_rate: int):
     k) Four subcarriers are inserted as pilots into positions –21, –7, 7, and 21.
     Refer to 17.3.5.9 for details.
 
-    l) For each group of subcarriers –26 to 26, convert the subcarriers to time domain using inverse
-    Fourier transform. Prepend to the Fourier-transformed waveform a circular extension of itself thus
-    forming a GI, and truncate the resulting periodic waveform to a single OFDM symbol length by
-    applying time domain windowing. Refer to 17.3.5.10 for details.
+    l) For each group of subcarriers –26 to 26, convert the subcarriers to time domain using inverse Fourier transform. 
+    Prepend to the Fourier-transformed waveform a circular extension of itself thus forming a GI. 
+    Refer to 17.3.5.10 for details.
     """
     data = [ofdm.do(ofdm_symbol, index_in_package=i + 1)  # + 1 because signal field was already modulated!
             for i, ofdm_symbol in enumerate(data)]
