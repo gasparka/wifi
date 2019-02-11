@@ -18,7 +18,7 @@ OFDMFrame.__doc__ = """ Contains 80 time-domain samples.
                         First 16 samples are the guard-interval (GI), last 64 are the result of IFFT """
 
 
-def modulate(ofdm_symbol: OFDMSymbol, index_in_package: int) -> OFDMFrame:
+def do(ofdm_symbol: OFDMSymbol, index_in_package: int) -> OFDMFrame:
     """
     j) Divide the complex number string into groups of 48 complex numbers. Each such group is
         associated with one OFDM symbol. In each group, the complex numbers are numbered 0 to 47 and
@@ -127,7 +127,7 @@ def modulate(ofdm_symbol: OFDMSymbol, index_in_package: int) -> OFDMFrame:
     return list(result)
 
 
-def demodulate(samples: OFDMFrame, equalizer: np.ndarray, index_in_package: int) -> OFDMSymbol:
+def undo(samples: OFDMFrame, equalizer: np.ndarray, index_in_package: int) -> OFDMSymbol:
     """ Undo the 'modulate_ofdm'
 
     Args:
@@ -212,7 +212,7 @@ def test_ofdm_i18():
     input = bits('0111011111110000111011111100010001110011000000001011111100010001000100001001101000011101000100'
                  '10011011100011100011110101011010010001101101101011100110000100001100000000000011011011001101101101')
     input_ofdm_symbol = modulator.do(input, bits_per_symbol=4)
-    output = modulate(input_ofdm_symbol, index_in_package=1)
+    output = do(input_ofdm_symbol, index_in_package=1)
 
     # Table I-25—Time domain representation of the DATA field: symbol 1of 6
     expected = [(-0.139 + 0.05j), (0.004 + 0.014j), (0.011 - 0.1j), (-0.097 - 0.02j), (0.062 + 0.081j),
@@ -236,5 +236,5 @@ def test_ofdm_i18():
     np.testing.assert_equal(expected[1:-1], np.round(output[1:-1], 3))
 
     # test demodulation
-    ofdm_symbol = demodulate(output, equalizer=[1] * 64, index_in_package=1)
+    ofdm_symbol = undo(output, equalizer=[1] * 64, index_in_package=1)
     np.testing.assert_allclose(ofdm_symbol, input_ofdm_symbol)

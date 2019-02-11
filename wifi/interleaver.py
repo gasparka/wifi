@@ -5,6 +5,9 @@
 All encoded data bits shall be interleaved by a block interleaver with a block size corresponding to the
 number of bits in a single OFDM symbol. The interleaver is defined by a two-step permutation.
 
+1. The first permutation causes adjacent coded bits to be mapped onto nonadjacent subcarriers.
+2. The second permutation causes adjacent coded bits to be mapped alternately onto less and more significant bits of the
+    constellation and, thereby, long runs of low reliability (LSB) bits are avoided.
 """
 from typing import List
 import numpy as np
@@ -34,7 +37,7 @@ def inverse_permute(x: List[int]) -> List[int]:
     return result.tolist()
 
 
-def apply(data: bits, coded_bits_ofdm_symbol: int, coded_bits_subcarrier: int) -> bits:
+def do(data: bits, coded_bits_ofdm_symbol: int, coded_bits_subcarrier: int) -> bits:
     """
     Divide the encoded bit string into groups of NCBPS bits. Within each group, perform an
     “interleaving” (reordering) of the bits according to a rule corresponding to the TXVECTOR
@@ -108,7 +111,7 @@ def test_i143():
 
     # IEEE Std 802.11-2016: Table I-9—SIGNAL field bits after interleaving
     expect = bits('100101001101000000010100100000110010010010010100')
-    result = apply(input, 48, 1)
+    result = do(input, 48, 1)
     assert result == expect
 
     # test reverse
@@ -122,7 +125,7 @@ def test_two_symbols():
     input = bits('110100011010000100000010001111100111000000000000110100011010000100000010001111100111000000000000')
 
     expect = bits('100101001101000000010100100000110010010010010100100101001101000000010100100000110010010010010100')
-    result = apply(input, 48, 1)
+    result = do(input, 48, 1)
     assert result == expect
 
     # test reverse
@@ -141,9 +144,11 @@ def test_i162():
                   '1000100100110111000111000111101010110100100011011011010111001100001000011000000000000110'
                   '11011001101101101')
 
-    result = apply(input, 192, 4)
+    result = do(input, 192, 4)
     assert result == expect
 
     # test reverse
     result = undo(expect, 192, 4)
     assert result == input
+
+

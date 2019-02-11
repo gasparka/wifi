@@ -1,5 +1,19 @@
-from typing import Tuple
+"""
+17.3.4 SIGNAL field - IEEE Std 802.11-2016
 
+The OFDM training symbols shall be followed by the SIGNAL field, which contains the RATE and the
+LENGTH fields of the TXVECTOR. The RATE field conveys information about the type of modulation
+and the coding rate as used in the rest of the packet.
+
+The SIGNAL field is composed of 24 bits:
+RATE        RESERVED    LENGTH      PARITY  SIGNAL_TAIL
+(4 bits)    (1 bit)     (12 bits)   (1 bit) (6 bits)
+
+"""
+
+from typing import Tuple
+from hypothesis import given
+from hypothesis._strategies import integers, sampled_from
 from wifi.bits import bits
 from wifi.util import reverse
 
@@ -26,19 +40,7 @@ RATE_LUT = {6: '1101',
             54: '0011'}
 
 
-def encode(data_rate: int, length_bytes: int) -> bits:
-    """
-    17.3.4 SIGNAL field - IEEE Std 802.11-2016
-
-    The OFDM training symbols shall be followed by the SIGNAL field, which contains the RATE and the
-    LENGTH fields of the TXVECTOR. The RATE field conveys information about the type of modulation
-    and the coding rate as used in the rest of the packet.
-
-    The SIGNAL field is composed of 24 bits:
-    RATE        RESERVED    LENGTH      PARITY  SIGNAL_TAIL
-    (4 bits)    (1 bit)     (12 bits)   (1 bit) (6 bits)
-
-    """
+def do(data_rate: int, length_bytes: int) -> bits:
     if length_bytes > (2 ** 12) - 1:
         raise Exception(f'Maximum bytes in a packet is {(2**12)-1}, you require {length_bytes}')
 
@@ -60,7 +62,7 @@ def encode(data_rate: int, length_bytes: int) -> bits:
     return signal
 
 
-def decode(data: bits) -> Tuple[int, int]:
+def undo(data: bits) -> Tuple[int, int]:
     parity = data[:17].count('1') & 1
     assert parity == data[17]
 
@@ -79,10 +81,15 @@ def test_signal_field():
     expect = '101100010011000000000000'
     data_rate = 36
     length_bytes = 100
-    output = encode(data_rate, length_bytes)
+    output = do(data_rate, length_bytes)
     assert output == expect
 
     # test decode
-    dec_data_rate, dec_length_bytes = decode(output)
+    dec_data_rate, dec_length_bytes = undo(output)
     assert dec_data_rate == data_rate
     assert dec_length_bytes == length_bytes
+
+
+@given(sampled_from(list(RATE_LUT.keys())), integers(min_value=0, max_value=(2**12)-1))
+def test_hypothesis_loop(data_rate: int, length_bytes: int):
+    assert undo(do(data_rate, length_bytes)) == (data_rate, length_bytes)

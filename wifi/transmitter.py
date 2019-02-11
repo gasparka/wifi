@@ -1,21 +1,20 @@
 import logging
 import numpy as np
-from wifi import convolutional_coder, signal_field, ofdm, interleaver, modulator, scrambler, bits, puncturer
+from wifi import convolutional_coder, header, ofdm, interleaver, modulator, scrambler, bits, puncturer, preamble, padder
 from wifi.config import Config
-from wifi.preamble import short_training_sequence, long_training_sequence
 
 log = logging.getLogger(__name__)
 
 
-def transmit(data: bits, data_rate:int):
+def transmit(data: bits, data_rate: int):
     """
     a) Produce the PHY Preamble field, composed of 10 repetitions of a “short training sequence” (used
     for AGC convergence, diversity selection, timing acquisition, and coarse frequency acquisition in
     the receiver) and two repetitions of a “long training sequence” (used for channel estimation and fine
     frequency acquisition in the receiver), preceded by a guard interval (GI). Refer to 17.3.3 for details.
     """
-    train_short = short_training_sequence()
-    train_long = long_training_sequence()
+    train_short = preamble.short_training_sequence()
+    train_long = preamble.long_training_sequence()
 
     """
     b) Produce the PHY header field from the RATE, LENGTH fields. In order to facilitate a reliable and timely
@@ -27,11 +26,11 @@ def transmit(data: bits, data_rate:int):
     contents of the SIGNAL field are not scrambled. Refer to 17.3.4 for details.
     """
     n_bytes = len(data.split(8))
-    signal = signal_field.encode(data_rate, length_bytes=n_bytes)
+    signal = header.do(data_rate, length_bytes=n_bytes)
     signal = convolutional_coder.do(signal)
-    signal = interleaver.apply(signal, coded_bits_ofdm_symbol=48, coded_bits_subcarrier=1)
+    signal = interleaver.do(signal, coded_bits_ofdm_symbol=48, coded_bits_subcarrier=1)
     signal = modulator.do(signal, bits_per_symbol=1)
-    signal = ofdm.modulate(signal, index_in_package=0)
+    signal = ofdm.do(signal, index_in_package=0)
 
     """
     c) Calculate from RATE field of the TXVECTOR the number of data bits per OFDM symbol (N DBPS ),
@@ -44,26 +43,8 @@ def transmit(data: bits, data_rate:int):
     d) Append the PSDU to the SERVICE field of the TXVECTOR. Extend the resulting bit string with
     zero bits (at least 6 bits) so that the resulting length is a multiple of N DBPS . The resulting bit string
     constitutes the DATA part of the packet. Refer to 17.3.5.4 for details.
-    
-    The SERVICE field has 16 bits. The bits from 0–6 of the SERVICE field, which are transmitted first, are set to 0s and are used to
-    synchronize the descrambler in the receiver. The remaining 9 bits (7–15) of the SERVICE field shall be
-    reserved for future use. All reserved bits shall be set to 0 on transmission and ignored on reception. Refer to
-    Figure 17-6.
-    
-    The PPDU TAIL field shall be six bits of 0, which are required to return the convolutional encoder to the
-    zero state. This procedure improves the error probability of the convolutional decoder, which relies on future
-    bits when decoding and which may be not be available past the end of the message.
     """
-    service = '0' * 16
-    tail = '0' * 6
-    data = service + data + tail
-
-    n_symbols = int(np.ceil(len(data) / conf.data_bits_per_ofdm_symbol))
-    n_data = n_symbols * conf.data_bits_per_ofdm_symbol
-    n_pad = int(n_data - len(data))
-    pad = '0' * n_pad
-
-    data = data + pad
+    data, n_symbols, n_pad = padder.do(data, conf.data_bits_per_ofdm_symbol)
     log.info(f'Package {n_bytes} bytes, {n_symbols} OFDM symbols ({n_pad} padding bits added)\n'
              f'\t data_rate={data_rate}, modulation={conf.modulation}, coding_rate={conf.coding_rate}')
 
@@ -79,11 +60,11 @@ def transmit(data: bits, data_rate:int):
     (Those bits return the convolutional encoder to the zero state and are denoted as tail bits.) 
     Refer to 17.3.5.3 for details. 
     """
-    data = data[:-len(pad) - 6] + '000000' + data[-len(pad):]
+    data = data[:-n_pad - 6] + '000000' + data[-n_pad:]
 
     """
-    g) Encode the extended, scrambled data string with a convolutional encoder (R = 1/2). Omit (puncture)
-    some of the encoder output string (chosen according to “puncturing pattern”) to reach the “coding
+    g) Encode the extended, scrambled data string with a convolutional encoder (R = 1/2). 
+    Omit (puncture) some of the encoder output string (chosen according to “puncturing pattern”) to reach the “coding
     rate” corresponding to the TXVECTOR parameter RATE. Refer to 17.3.5.6 for details.
     """
     data = convolutional_coder.do(data)
@@ -94,7 +75,7 @@ def transmit(data: bits, data_rate:int):
     “interleaving” (reordering) of the bits according to a rule corresponding to the TXVECTOR
     parameter RATE. Refer to 17.3.5.7 for details.
     """
-    data = interleaver.apply(data, conf.coded_bits_per_ofdm_symbol, conf.coded_bits_per_carrier_symbol)
+    data = interleaver.do(data, conf.coded_bits_per_ofdm_symbol, conf.coded_bits_per_carrier_symbol)
 
     """
     i) Divide the resulting coded and interleaved data string into groups of 'coded_bits_subcarrier' bits. 
@@ -122,7 +103,7 @@ def transmit(data: bits, data_rate:int):
     forming a GI, and truncate the resulting periodic waveform to a single OFDM symbol length by
     applying time domain windowing. Refer to 17.3.5.10 for details.
     """
-    data = [ofdm.modulate(ofdm_symbol, index_in_package=i + 1)  # + 1 because signal field was already modulated!
+    data = [ofdm.do(ofdm_symbol, index_in_package=i + 1)  # + 1 because signal field was already modulated!
             for i, ofdm_symbol in enumerate(data)]
 
     """
