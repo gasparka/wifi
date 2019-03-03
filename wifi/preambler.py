@@ -1,5 +1,7 @@
 import numpy as np
 
+from wifi.util import moving_average
+
 
 def short_training_symbol() -> np.ndarray:
     """
@@ -172,10 +174,46 @@ def long_training_sequence():
 
     symbol = np.fft.ifft(long_training_symbol())
     full_long_time = np.concatenate([symbol[32:], symbol, symbol])  # two symbols plus 32 samples of GI
-    full_l = np.concatenate([symbol[48:], symbol, symbol[48:], symbol])
     return full_long_time
 
 
+def get():
+    train_short = short_training_sequence()
+    train_long = long_training_sequence()
+    train_short[0] = train_short[0] / 2
+    # merge short and long training sequence
+    train_long[0] = (train_short[-64] + train_long[0]) / 2
+
+    result = np.concatenate([train_short, train_long])
+    return result
+
+
+def detect(iq, thres=0.5):
+    """
+    Returns index to start of first long training symbol
+    """
+    import matplotlib.pyplot as plt
+    # plt.figure(figsize=(9.75, 5))
+    acorr = (iq[:-16] * np.conjugate(iq[16:])).real
+    acorr = moving_average(acorr, 8)
+    # plt.plot(acorr)
+
+    power = (iq * np.conjugate(iq)).real
+    power = moving_average(power, 8)
+    # plt.plot(power)
+
+    ratio = [-1.0 if x else 1.0 for x in acorr < 0.5 * power[:len(acorr)]]
+    ratio = moving_average(ratio, 128)  # valid packet will have high ratio
+    # plt.plot(ratio)
+    # plt.show()
+
+    # ratio = ratio[::-1]
+    try:
+        high = np.where(ratio >= 0.9)[0][0] # first point going high
+        low = np.mean(np.where(ratio[high:] < 0.6)[0][:7]) # first point going low, after being high
+        return high + low - 172 # - 177 shifts the detection index to package start
+    except IndexError:
+        return -1
 def test_short_training_sequence():
     """ IEEE Std 802.11-2016 - Table I-4—Time domain representation of the short sequence """
     result = np.round(short_training_sequence(), 3)

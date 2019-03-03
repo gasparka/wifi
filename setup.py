@@ -21,5 +21,6 @@ setup(
                       'scipy',
                       'dataclasses',
                       'numba',
-                      'hypothesis'],
+                      'hypothesis',
+                      'loguru'],
 )

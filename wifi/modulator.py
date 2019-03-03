@@ -115,7 +115,7 @@ def test_i144():
 
 
 @given(binary(), sampled_from([1, 2, 4, 6]))
-def test_hypothesis_loop(data, bits_per_symbol):
+def test_hypothesis(data, bits_per_symbol):
     data = bits(data)
     assert undo(do(data, bits_per_symbol), bits_per_symbol) == data
 

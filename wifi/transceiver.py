@@ -1,25 +1,28 @@
-import logging
 import numpy as np
-from wifi import convolutional_coder, header, ofdm, interleaver, modulator, scrambler, bits, puncturer, preamble, padder
+from hypothesis import settings, given
+from hypothesis._strategies import composite, integers, binary, sampled_from
+
+from wifi import convolutional_coder, header, ofdm, interleaver, modulator, scrambler, bits, puncturer, preambler, \
+    padder
 from wifi.config import Config
+from wifi.preambler import long_training_symbol
+from loguru import logger
 
-log = logging.getLogger(__name__)
 
-
-def transmit(data: bits, data_rate: int):
+def do(data: bits, data_rate: int):
     """
     a) Produce the PHY Preamble field, composed of 10 repetitions of a “short training sequence” (used
     for AGC convergence, diversity selection, timing acquisition, and coarse frequency acquisition in
     the receiver) and two repetitions of a “long training sequence” (used for channel estimation and fine
     frequency acquisition in the receiver), preceded by a guard interval (GI). Refer to 17.3.3 for details.
     """
-    train_short = preamble.short_training_sequence()
-    train_long = preamble.long_training_sequence()
+    train_short = preambler.short_training_sequence()
+    train_long = preambler.long_training_sequence()
 
     """
     b) Produce the PHY header field from the RATE, LENGTH fields. In order to facilitate a reliable and timely
     detection of the RATE and LENGTH fields, 6 zero tail bits are inserted into the PHY header. 
-    
+
     The encoding of the SIGNAL field into an OFDM symbol follows the same steps for convolutional
     encoding, interleaving, BPSK modulation, pilot insertion, Fourier transform, and prepending a GI as
     described subsequently for data transmission with BPSK-OFDM modulated at coding rate 1/2. The
@@ -45,8 +48,8 @@ def transmit(data: bits, data_rate: int):
     constitutes the DATA part of the packet. Refer to 17.3.5.4 for details.
     """
     data, n_symbols, n_pad = padder.do(data, conf.data_bits_per_ofdm_symbol)
-    log.info(f'Package {n_bytes} bytes, {n_symbols} OFDM symbols ({n_pad} padding bits added)\n'
-             f'\t data_rate={data_rate}, modulation={conf.modulation}, coding_rate={conf.coding_rate}')
+    logger.info(f'Package {n_bytes} bytes, {n_symbols} OFDM symbols ({n_pad} padding bits added)\n'
+                f'\t data_rate={data_rate}, modulation={conf.modulation}, coding_rate={conf.coding_rate}')
 
     """
     e) If the TXVECTOR parameter CH_BANDWIDTH_IN_NON_HT is not present, initiate the
@@ -111,7 +114,7 @@ def transmit(data: bits, data_rate: int):
     """
     m) Append the OFDM symbols one after another, starting after the SIGNAL symbol describing the
     RATE and LENGTH fields. Refer to 17.3.5.10 for details.
-    
+
     Note: also doing time domain windowing, as discussed in "17.3.2.6 Discrete time implementation considerations"
     """
 
@@ -134,11 +137,55 @@ def transmit(data: bits, data_rate: int):
     return result
 
 
-def test_annexi():
-    # Table I-1—The message for the BCC example - i have reversed bit ordering in each byte
-    input = bits('0x20400074000610b3ec6500046b803c8f000610b5dcf5000052f69e3404464e96e6162e04ce0e864ed604f6660426966e9676962e9e34502286aee6162ea64e04f66604a2369ece96aeb6345062964ea6b49676ce964ea62604eea6042e4ea686e6cc846d')
+def undo(iq):
+    iq = iq[192:]  # throw away short preamble and GI of long training symbol
+    # TODO: tx -> rx loop should work
+    """ Channel estimation - calculate how much the known symbols have changed and produce inverse channel """
+    avg_train = (iq[:64] + iq[64:128]) / 2
+    channel_estimate = np.fft.fft(avg_train) / long_training_symbol()
+    equalizer = 1 / channel_estimate
 
-    output = transmit(input, data_rate=36)
+    """ Signal field demodulation - this gives us the data rate for the payload and also the payload length """
+    signal = iq[128: 128 + 80]
+    signal_symbols = ofdm.undo(signal, equalizer, index_in_package=0)
+    data_bits = modulator.undo(signal_symbols, bits_per_symbol=1)
+    data_bits = interleaver.undo(data_bits, coded_bits_ofdm_symbol=48, coded_bits_subcarrier=1)
+    data_bits = convolutional_coder.undo(data_bits)
+    data_rate, length_bytes = header.undo(data_bits)
+    conf = Config.from_data_rate(data_rate)
+    n_ofdm_symbols = int(np.ceil((length_bytes * 8 + 22) / conf.data_bits_per_ofdm_symbol))
+    logger.info(
+        f'Package {length_bytes} bytes -> {n_ofdm_symbols} OFDM symbols @ {data_rate}MB/s ({conf.modulation}, {conf.coding_rate})')
+
+    """ Payload demodulation """
+    signal_end = 128 + 80
+    data_groups = iq[signal_end: signal_end + (80 * n_ofdm_symbols)].reshape((-1, 80))
+    data_symbols = np.array([ofdm.undo(group, equalizer, index_in_package=1 + i)
+                             for i, group in enumerate(data_groups)])
+
+    """ Symbols to bits flow """
+    data_bits = bits([modulator.undo(symbol, bits_per_symbol=conf.coded_bits_per_carrier_symbol)
+                      for symbol in data_symbols])
+
+    interleaving_groups = data_bits.split(conf.coded_bits_per_ofdm_symbol)
+    data_bits = bits([interleaver.undo(group, conf.coded_bits_per_ofdm_symbol, conf.coded_bits_per_carrier_symbol)
+                      for group in interleaving_groups])
+    # data_bits = interleaver.undo(data_bits, conf.coded_bits_per_ofdm_symbol, conf.coded_bits_per_carrier_symbol)
+    data_bits = puncturer.undo(data_bits, conf.coding_rate)
+    data_bits = convolutional_coder.undo(data_bits)
+    data_bits = scrambler.undo(data_bits)
+    data_bits = padder.undo(data_bits, length_bytes)
+
+    return data_bits
+
+
+def test_annexi():
+    """ This is the full test-case provided in the WiFi standard, in paragraph ANNEX I """
+    # Table I-1—The message for the BCC example - i have reversed bit ordering in each byte
+    input = bits(
+        '0x20400074000610b3ec6500046b803c8f000610b5dcf5000052f69e3404464e96e6162e04ce0e864ed604f6660426966e9676962e9e34502286aee6162ea64e04f66604a2369ece96aeb6345062964ea6b49676ce964ea62604eea6042e4ea686e6cc846d')
+
+    output = do(input, data_rate=36)
     output = np.round(output, 3)
 
     # Table I-22—Time domain representation of the short training sequence
@@ -342,3 +389,23 @@ def test_annexi():
          expected_data4, expected_data5, expected_data6])
 
     np.testing.assert_equal(output, expected)
+
+    # test undo
+    undo_bits = undo(output)
+    assert input == undo_bits
+
+
+@composite
+def random_packet(draw):
+    elements = draw(integers(min_value=0, max_value=1000)) # correct would be max_value=(2**12)-1, but this is too slow!
+    data = draw(binary(min_size=elements, max_size=elements))
+    data = bits(data)
+    rate = draw(sampled_from([6, 9, 12, 18, 24, 36, 48, 54]))
+    return data, rate
+
+
+@settings(deadline=None)
+@given(random_packet())
+def test_hypothesis(data_test):
+    data, rate = data_test
+    assert undo(do(data, data_rate=rate)) == data

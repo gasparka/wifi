@@ -38,7 +38,7 @@ def undo(data: bits, coding_rate='1/2') -> bits:
 
 
 @given(binary(), sampled_from(['1/2', '2/3', '3/4']))
-def test_hypothesis_loop(data, coding_rate):
+def test_hypothesis(data, coding_rate):
     data = bits(data)
 
     # cant test equality because 'do' throws away data

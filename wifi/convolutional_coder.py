@@ -180,6 +180,6 @@ def test_i161():
 @settings(deadline=None)
 @given(binary())
 # @given(binary(), sampled_from(['1/2', '2/3', '3/4']))
-def test_hypothesis_loop(data):
+def test_hypothesis(data):
     data = bits(data)
     assert undo(do(data)) == data

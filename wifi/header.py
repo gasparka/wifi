@@ -91,5 +91,5 @@ def test_signal_field():
 
 
 @given(sampled_from(list(RATE_LUT.keys())), integers(min_value=0, max_value=(2**12)-1))
-def test_hypothesis_loop(data_rate: int, length_bytes: int):
+def test_hypothesis(data_rate: int, length_bytes: int):
     assert undo(do(data_rate, length_bytes)) == (data_rate, length_bytes)

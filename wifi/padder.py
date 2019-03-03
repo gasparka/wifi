@@ -43,7 +43,7 @@ def undo(data: bits, length_bytes: int) -> bits:
 
 
 @given(binary(), sampled_from([48, 96, 192, 288]))
-def test_hypothesis_loop(data, data_bits_per_ofdm_symbol):
+def test_hypothesis(data, data_bits_per_ofdm_symbol):
     data = bits(data)
 
     done_data, n_symbols, n_pad = do(data, data_bits_per_ofdm_symbol)

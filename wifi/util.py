@@ -47,18 +47,17 @@ def default_iee80211_package():
                  '6976696E6974792C0A4461756768746572206F6620456C797369756D2C0A466972652D696E73697265642077652074'
                  '726561673321B6')
 
-    from wifi.transmitter import transmit
     return input, transmit(Bits(input), data_rate=24)
 
 
 def bit_error_rate(snr):
-    from wifi.receiver import receiver
+    from wifi.receiver import receive
     bits, iq = default_iee80211_package()
 
     def one(iq):
         iq = awgn(iq, snr)
         try:
-            res = receiver(iq[160 + 30:])
+            res = receive(iq[160 + 30:])
         except:
             return 1.0
         diff = len([True for x, y in zip(bits, res.bits) if x != y])

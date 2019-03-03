@@ -64,6 +64,6 @@ def test_i152():
 
 
 @given(binary())
-def test_hypothesis_loop(s):
+def test_hypothesis(s):
     s = bits(s)
     assert undo(do(s)) == s

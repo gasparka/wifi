@@ -8,8 +8,7 @@ import pytest
 
 from wifi import scrambler, convolutional_coder, header, ofdm, bits, interleaver, puncturer, modulator, padder
 from wifi.config import Config
-from wifi.preamble import long_training_symbol
-from wifi.transmitter import transmit
+from wifi.preambler import long_training_symbol
 from wifi.util import moving_average, awgn, evm_db2
 
 logger = logging.getLogger(__name__)
@@ -60,8 +59,8 @@ class Packet:
     bits: str
 
 
-# @profile
-def receiver(iq):
+def receive(iq):
+    iq = iq[192:] # throw away short preamble and GI of long training symbol
     # TODO: tx -> rx loop should work
     """ Channel estimation - calculate how much the known symbols have changed and produce inverse channel """
     avg_train = (iq[:64] + iq[64:128]) / 2
@@ -127,7 +126,7 @@ def test_loopback(data_rate):
     iq = awgn(iq, 20)
 
     i = packet_detector(iq)[0]
-    packet = receiver(iq[i - 2:])
+    packet = receive(iq[i - 2:])
     assert packet.bits == data_bits
 
 
@@ -142,7 +141,7 @@ def test_evm_limemini():
 
     iq = np.load(dir_path + '../data/limemini_air.npy')
     i = packet_detector(iq)[0]
-    packet = receiver(iq[i - 2:])
+    packet = receive(iq[i - 2:])
 
     evm = evm_db2(*packet.data_symbols)
     assert int(evm) == -23
@@ -151,7 +150,7 @@ def test_evm_limemini():
 def test_evm2():
     iq = np.load(dir_path + '../data/sym8_rate24.npy')
     i = packet_detector(iq)[0]
-    packet = receiver(iq[i - 2:])
+    packet = receive(iq[i - 2:])
 
     evm = evm_db2(*packet.data_symbols)
     assert int(evm) == -19
@@ -161,7 +160,7 @@ def test_evm3():
     """ This one has weird Sin shape EVM vs time.. sampling errro? """
     iq = np.load(dir_path + '../data/sym130_rate24.npy')
     i = packet_detector(iq)[0]
-    packet = receiver(iq[i - 2:])
+    packet = receive(iq[i - 2:])
 
     evm = evm_db2(*packet.data_symbols)
     assert int(evm) == -18
@@ -171,7 +170,7 @@ def test_evm4():
     """ This one has weird Sin shape EVM vs time.. sampling errro? """
     iq = np.load(dir_path + '../data/sym173_rate18.npy')
     i = packet_detector(iq)[0]
-    packet = receiver(iq[i - 3:])
+    packet = receive(iq[i - 3:])
 
     evm = evm_db2(*packet.data_symbols)
     assert int(evm) == -18
@@ -180,7 +179,7 @@ def test_evm4():
 def test_evm5():
     iq = np.load(dir_path + '../data/sym16_rate48.npy')
     i = packet_detector(iq)[0]
-    packet = receiver(iq[i - 3:])
+    packet = receive(iq[i - 3:])
 
     evm = evm_db2(*packet.data_symbols)
     assert int(evm) == -19
