@@ -3,7 +3,7 @@ from hypothesis import settings, given
 from hypothesis._strategies import composite, integers, binary, sampled_from
 
 from wifi import convolutional_coder, header, ofdm, interleaver, modulator, scrambler, bits, puncturer, preambler, \
-    padder
+    padder, subcarrier_mapping, pilots, fourier_transform, guard_interval, time_domain_windowing
 from wifi.config import Config
 from wifi.preambler import long_training_symbol
 from loguru import logger
@@ -90,6 +90,26 @@ def do(data: bits, data_rate: int):
     """
     data = modulator.do(data, conf.coded_bits_per_carrier_symbol)
 
+    # symbols = modulator.do(data, conf.coded_bits_per_carrier_symbol)
+    #
+    # symbols = signal + symbols
+    #
+    # carriers = subcarrier_mapping.do(symbols)
+    # carriers = pilots.do(carriers)
+    #
+    # data = fourier_transform.do(carriers)
+    # data = guard_interval.do(data)
+
+    """
+    j) Divide the complex number string into groups of 48 complex numbers. Each such group is
+    associated with one OFDM symbol. In each group, the complex numbers are numbered 0 to 47 and
+    mapped hereafter into OFDM subcarriers numbered –26 to –22, –20 to –8, –6 to –1, 1 to 6, 8 to 20,
+    and 22 to 26. The subcarriers –21, –7, 7, and 21 are skipped and, subsequently, used for inserting
+    pilot subcarriers. The 0 subcarrier, associated with center frequency, is omitted and filled with the
+    value 0. Refer to 17.3.5.10 for details.
+    """
+    data = np.array(data).reshape((-1, 48))
+
     """
     j) Divide the complex number string into groups of 48 complex numbers. Each such group is
     associated with one OFDM symbol. In each group, the complex numbers are numbered 0 to 47 and
@@ -104,8 +124,8 @@ def do(data: bits, data_rate: int):
     k) Four subcarriers are inserted as pilots into positions –21, –7, 7, and 21.
     Refer to 17.3.5.9 for details.
 
-    l) For each group of subcarriers –26 to 26, convert the subcarriers to time domain using inverse Fourier transform. 
-    Prepend to the Fourier-transformed waveform a circular extension of itself thus forming a GI. 
+    l) For each group of subcarriers –26 to 26, convert the subcarriers to time domain using inverse Fourier transform.
+    Prepend to the Fourier-transformed waveform a circular extension of itself thus forming a GI.
     Refer to 17.3.5.10 for details.
     """
     data = [ofdm.do(ofdm_symbol, index_in_package=i + 1)  # + 1 because signal field was already modulated!
@@ -118,23 +138,8 @@ def do(data: bits, data_rate: int):
     Note: also doing time domain windowing, as discussed in "17.3.2.6 Discrete time implementation considerations"
     """
 
-    train_short[0] = train_short[0] / 2
-    # merge short and long training sequence
-    train_long[0] = (train_short[-64] + train_long[0]) / 2
-
-    # merge long training sequence with header
-    signal[0] = (train_long[-64] + signal[0]) / 2
-
-    # merge header with data
-    data[0][0] = (signal[-64] + data[0][0]) / 2
-
-    # merge each data symbol
-    for i in range(1, len(data)):
-        data[i][0] = (data[i - 1][-64] + data[i][0]) / 2
-    data = np.concatenate(data)
-
-    result = np.concatenate([train_short, train_long, signal, data, [data[-64] / 2]])
-    return result
+    result = time_domain_windowing.do(data, train_short, train_long, signal)
+    return np.array(result)
 
 
 def undo(iq):
@@ -183,7 +188,9 @@ def test_annexi():
     """ This is the full test-case provided in the WiFi standard, in paragraph ANNEX I """
     # Table I-1—The message for the BCC example - i have reversed bit ordering in each byte
     input = bits(
-        '0x20400074000610b3ec6500046b803c8f000610b5dcf5000052f69e3404464e96e6162e04ce0e864ed604f6660426966e9676962e9e34502286aee6162ea64e04f66604a2369ece96aeb6345062964ea6b49676ce964ea62604eea6042e4ea686e6cc846d')
+        '0x20400074000610b3ec6500046b803c8f000610b5dcf5000052f69e3404464e96e6162e04ce0e864ed604f6660426966e967'
+        '6962e9e34502286aee6162ea64e04f66604a2369ece96aeb6345062964ea6b49676ce964ea62604eea6042e4ea686e6cc846d'
+    )
 
     output = do(input, data_rate=36)
     output = np.round(output, 3)

@@ -22,5 +22,6 @@ setup(
                       'dataclasses',
                       'numba',
                       'hypothesis',
-                      'loguru'],
+                      'loguru',
+                      'more_itertools'],
 )
