@@ -1,13 +1,10 @@
-import logging
+from loguru import logger
 import numpy as np
 from hypothesis import given, assume, settings
-from hypothesis._strategies import binary, sampled_from
+from hypothesis._strategies import binary
 from numba import njit
-
 from wifi import puncturer, bits
 from wifi.util import xor_reduce_poly, is_divisible
-
-logger = logging.getLogger(__name__)
 
 # config
 K = 7
@@ -109,7 +106,7 @@ def undo(data: bits) -> bits:
     data = [LUT[state_transition] for state_transition in data.split(2)]
 
     out, error_score = trellis_kernel(data)
-    logger.info(f'Decoded {len(out)} bits, error_score={int(error_score)}')
+    logger.debug(f'{len(out)//8}B, error_score={int(error_score)}')
     return bits(out)
 
 

@@ -1,6 +1,15 @@
+from typing import List
+
 import numpy as np
 
 from wifi.util import moving_average
+
+"""
+    a) Produce the PHY Preamble field, composed of 10 repetitions of a “short training sequence” (used
+    for AGC convergence, diversity selection, timing acquisition, and coarse frequency acquisition in
+    the receiver) and two repetitions of a “long training sequence” (used for channel estimation and fine
+    frequency acquisition in the receiver), preceded by a guard interval (GI). Refer to 17.3.3 for details.
+"""
 
 
 def short_training_symbol() -> np.ndarray:
@@ -79,7 +88,7 @@ def short_training_symbol() -> np.ndarray:
     return np.array(carriers) * np.sqrt(13 / 6)
 
 
-def short_training_sequence() -> np.ndarray:
+def short_training_sequence() -> List[complex]:
     """
 
     Returns:
@@ -88,7 +97,7 @@ def short_training_sequence() -> np.ndarray:
 
     symbol = np.fft.ifft(short_training_symbol())
     full_long_time = np.concatenate([symbol[32:], symbol, symbol])  # two symbols plus 32 samples of GI
-    return full_long_time
+    return full_long_time.tolist()
 
 
 def long_training_symbol() -> np.ndarray:
@@ -174,7 +183,7 @@ def long_training_sequence():
 
     symbol = np.fft.ifft(long_training_symbol())
     full_long_time = np.concatenate([symbol[32:], symbol, symbol])  # two symbols plus 32 samples of GI
-    return full_long_time
+    return full_long_time.tolist()
 
 
 def get():
@@ -209,11 +218,13 @@ def detect(iq, thres=0.5):
 
     # ratio = ratio[::-1]
     try:
-        high = np.where(ratio >= 0.9)[0][0] # first point going high
-        low = np.mean(np.where(ratio[high:] < 0.6)[0][:7]) # first point going low, after being high
-        return high + low - 172 # - 177 shifts the detection index to package start
+        high = np.where(ratio >= 0.9)[0][0]  # first point going high
+        low = np.mean(np.where(ratio[high:] < 0.6)[0][:7])  # first point going low, after being high
+        return high + low - 172  # - 177 shifts the detection index to package start
     except IndexError:
         return -1
+
+
 def test_short_training_sequence():
     """ IEEE Std 802.11-2016 - Table I-4—Time domain representation of the short sequence """
     result = np.round(short_training_sequence(), 3)

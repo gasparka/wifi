@@ -1,5 +1,10 @@
 from dataclasses import dataclass
 
+"""
+c) Calculate from RATE field of the TXVECTOR the number of data bits per OFDM symbol (N DBPS ),
+the coding rate (R), the number of bits in each OFDM subcarrier (N BPSC ), and the number of coded
+bits per OFDM symbol (N CBPS ). Refer to 17.3.2.3 for details.
+"""
 
 @dataclass
 class Config:

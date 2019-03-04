@@ -13,11 +13,17 @@ Divide the encoded bit string into groups of NCBPS bits. Within each group, perf
 “interleaving” (reordering) of the bits according to a rule corresponding to the TXVECTOR
 parameter RATE. Refer to 17.3.5.7 for details.
 """
+from functools import lru_cache
 from typing import List
 import numpy as np
+from hypothesis import given, assume
+from hypothesis._strategies import composite, integers, sampled_from, binary
+
 from wifi.bits import bits
+from wifi.util import is_divisible
 
 
+@lru_cache()
 def first_permute(coded_bits_ofdm_symbol: int) -> List[int]:
     """ The first permutation causes adjacent coded bits to be mapped onto nonadjacent subcarriers. """
     lut = [int((coded_bits_ofdm_symbol / 16) * (k % 16) + np.floor(k / 16))
@@ -25,6 +31,7 @@ def first_permute(coded_bits_ofdm_symbol: int) -> List[int]:
     return lut
 
 
+@lru_cache()
 def second_permute(coded_bits_ofdm_symbol: int, coded_bits_subcarrier: int) -> List[int]:
     """ The second permutation causes adjacent coded bits to be mapped alternately onto less and more significant bits of the
     constellation and, thereby, long runs of low reliability (LSB) bits are avoided. """
@@ -41,8 +48,7 @@ def inverse_permute(x: List[int]) -> List[int]:
     return result.tolist()
 
 
-def do(data: bits, coded_bits_ofdm_symbol: int, coded_bits_subcarrier: int) -> bits:
-
+def do_one(data: bits, coded_bits_ofdm_symbol: int, coded_bits_subcarrier: int) -> bits:
     table = first_permute(coded_bits_ofdm_symbol)
     table = inverse_permute(table)
     first_result = data[table]
@@ -51,15 +57,29 @@ def do(data: bits, coded_bits_ofdm_symbol: int, coded_bits_subcarrier: int) -> b
     table = inverse_permute(table)
     second_result = first_result[table]
     return second_result
+
+
+def undo_one(data: bits, coded_bits_ofdm_symbol: int, coded_bits_subcarrier: int) -> bits:
+    table = second_permute(coded_bits_ofdm_symbol, coded_bits_subcarrier)
+    first_result = data[table]
+
+    table = first_permute(coded_bits_ofdm_symbol)
+    second_result = first_result[table]
+    return second_result
+
+
+def do(data: bits, coded_bits_ofdm_symbol: int, coded_bits_subcarrier: int) -> bits:
+    assume(is_divisible(data, coded_bits_ofdm_symbol))
+    result = [do_one(interleaving_group, coded_bits_ofdm_symbol, coded_bits_subcarrier)
+              for interleaving_group in data.split(coded_bits_ofdm_symbol)]
+    return bits(result)
 
 
 def undo(data: bits, coded_bits_ofdm_symbol: int, coded_bits_subcarrier: int) -> bits:
-    table = second_permute(coded_bits_ofdm_symbol, coded_bits_subcarrier)
-    first_result = data[table]
-
-    table = first_permute(coded_bits_ofdm_symbol)
-    second_result = first_result[table]
-    return second_result
+    assume(is_divisible(data, coded_bits_ofdm_symbol))
+    result = [undo_one(group, coded_bits_ofdm_symbol, coded_bits_subcarrier)
+              for group in data.split(coded_bits_ofdm_symbol)]
+    return bits(result)
 
 
 def test_first_permutation_table():
@@ -127,3 +147,19 @@ def test_i162():
     assert result == input
 
 
+@composite
+def combaination(draw):
+    from wifi.config import Config
+    packets = draw(integers(min_value=0, max_value=64))
+    rate = draw(sampled_from([6, 9, 12, 18, 24, 36, 48, 54]))
+    conf = Config.from_data_rate(rate)
+    lim = packets * conf.coded_bits_per_ofdm_symbol
+    data = draw(binary(min_size=lim, max_size=lim))
+    data = bits(data)
+    return data, conf.coded_bits_per_ofdm_symbol, conf.coded_bits_per_carrier_symbol
+
+
+@given(combaination())
+def test_hypothesis(data):
+    data, coded_bits_per_ofdm_symbol, coded_bits_per_carrier_symbol = data
+    assert undo(do(data, coded_bits_per_ofdm_symbol, coded_bits_per_carrier_symbol), coded_bits_per_ofdm_symbol, coded_bits_per_carrier_symbol) == data

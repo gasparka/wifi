@@ -1,7 +1,5 @@
-from typing import List, Optional
-
+from typing import List
 import numpy as np
-from wifi.util import flip_byte_endian
 
 
 class bits:

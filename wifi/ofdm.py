@@ -122,6 +122,7 @@ def do(ofdm_symbol: OFDMSymbol, index_in_package: int) -> OFDMFrame:
     carriers[30] = 0
     carriers[31] = 0
 
+
     ifft = np.fft.ifft(carriers)
     result = np.concatenate([ifft[-16:], ifft])  # add 16 samples of GI (guard interval)
     return list(result)

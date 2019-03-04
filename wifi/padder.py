@@ -24,7 +24,7 @@ from wifi import bits
 import numpy as np
 
 
-def do(data: bits, data_bits_per_ofdm_symbol: int) -> Tuple[bits, int, int]:
+def do(data: bits, data_bits_per_ofdm_symbol: int) -> Tuple[bits, int]:
     service = '0' * 16
     tail = '0' * 6
     data = service + data + tail
@@ -35,7 +35,7 @@ def do(data: bits, data_bits_per_ofdm_symbol: int) -> Tuple[bits, int, int]:
     pad = '0' * n_pad
 
     data = data + pad
-    return data, n_symbols, n_pad
+    return data, n_pad
 
 
 def undo(data: bits, length_bytes: int) -> bits:
@@ -46,5 +46,5 @@ def undo(data: bits, length_bytes: int) -> bits:
 def test_hypothesis(data, data_bits_per_ofdm_symbol):
     data = bits(data)
 
-    done_data, n_symbols, n_pad = do(data, data_bits_per_ofdm_symbol)
+    done_data, n_pad = do(data, data_bits_per_ofdm_symbol)
     assert undo(done_data, len(data) // 8) == data
