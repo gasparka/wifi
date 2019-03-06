@@ -1,8 +1,7 @@
 from typing import List
-
 import numpy as np
 
-from wifi.util import moving_average
+from util.util import moving_average
 
 """
     a) Produce the PHY Preamble field, composed of 10 repetitions of a “short training sequence” (used

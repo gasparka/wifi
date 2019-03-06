@@ -19,8 +19,8 @@ import numpy as np
 from hypothesis import given, assume
 from hypothesis._strategies import composite, integers, sampled_from, binary
 
+from util.util import is_divisible
 from wifi.bits import bits
-from wifi.util import is_divisible
 
 
 @lru_cache()

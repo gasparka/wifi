@@ -23,11 +23,11 @@ from typing import Tuple, List
 from hypothesis import given
 from hypothesis._strategies import integers, sampled_from
 
+from util.util import reverse
 from wifi import convolutional_coder, interleaver, modulator
 from wifi.bits import bits
 from wifi.modulator import Symbol
 from wifi.subcarrier_mapping import Carriers
-from wifi.util import reverse
 
 """
 Data rate to bits:

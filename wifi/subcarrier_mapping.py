@@ -17,9 +17,9 @@ from hypothesis._strategies import lists
 from hypothesis.extra.numpy import arrays
 from more_itertools import chunked, flatten
 
+from util.util import is_divisible
 from wifi import modulator
 from wifi.modulator import Symbol
-from wifi.util import is_divisible
 
 Carriers = List[modulator.Symbol]
 Carriers.__doc__ = """ Contains 64 Symbols, one to modulate each OFDM carrier. """

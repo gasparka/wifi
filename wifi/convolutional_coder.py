@@ -3,8 +3,9 @@ import numpy as np
 from hypothesis import given, assume, settings
 from hypothesis._strategies import binary
 from numba import njit
+
+from util.util import xor_reduce_poly, is_divisible
 from wifi import puncturer, bits
-from wifi.util import xor_reduce_poly, is_divisible
 
 # config
 K = 7

@@ -206,3 +206,10 @@ class bits:
         """
         return bits(other) ^ self
 
+    def __bytes__(self):
+        """
+        >>> bytes(bits(b'test'))
+        b'test'
+        """
+        ints = [int(str(x), 2) for x in self.split(8)]
+        return bytes(ints)

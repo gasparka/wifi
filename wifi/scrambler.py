@@ -1,7 +1,7 @@
 """
-The DATA field, composed of SERVICE, PSDU, tail, and pad parts, shall be scrambled with a length-127
-PPDU-synchronous scrambler. The octets of the PSDU are placed in the transmit serial bit stream, bit 0 first
-and bit 7 last.
+Scrambler randomizes the input data stream, which provides very-weak layer of security.
+May increase transmission quality when the original data contains long running ones/zeroes.
+Also known as whitener because output resembles white noise.
 """
 from hypothesis import given
 from hypothesis._strategies import binary

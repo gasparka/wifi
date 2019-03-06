@@ -12,8 +12,9 @@ from typing import List, NewType
 import numpy as np
 from hypothesis import given, assume
 from hypothesis._strategies import binary, sampled_from
+
+from util.util import is_divisible
 from wifi.bits import bits
-from wifi.util import is_divisible
 
 BPSK_LUT = np.array([-1 + 0j, 1 + 0j])
 

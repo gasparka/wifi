@@ -1,14 +1,14 @@
 import os
+from copy import deepcopy
 from typing import List
 
 import numpy as np
 from hypothesis import settings, given
 from hypothesis._strategies import composite, integers, binary, sampled_from
 
-from wifi import convolutional_coder, header, ofdm, interleaver, modulator, scrambler, bits, puncturer, preambler, \
+from wifi import convolutional_coder, header, interleaver, modulator, scrambler, bits, puncturer, preambler, \
     padder, subcarrier_mapping, pilots, to_time_domain, guard_interval, merger, channel_impairments
 from wifi.config import Config
-from wifi.preambler import long_training_symbol
 from loguru import logger
 
 

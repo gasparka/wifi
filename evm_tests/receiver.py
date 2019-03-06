@@ -6,9 +6,7 @@ from typing import Tuple
 import numpy as np
 import pytest
 
-from wifi import scrambler, convolutional_coder, header, ofdm, bits, interleaver, puncturer, modulator, padder
-from wifi.config import Config
-from wifi.preambler import long_training_symbol
+from wifi import bits
 from wifi.util import moving_average, awgn, evm_db2
 
 logger = logging.getLogger(__name__)
@@ -57,57 +55,6 @@ class Packet:
     coding_rate: str
     data_symbols: Tuple[np.ndarray, int]
     bits: str
-
-
-def receive(iq):
-    iq = iq[192:] # throw away short preamble and GI of long training symbol
-    # TODO: tx -> rx loop should work
-    """ Channel estimation - calculate how much the known symbols have changed and produce inverse channel """
-    avg_train = (iq[:64] + iq[64:128]) / 2
-    channel_estimate = np.fft.fft(avg_train) / long_training_symbol()
-    equalizer = 1 / channel_estimate
-
-    """ Signal field demodulation - this gives us the data rate for the payload and also the payload length """
-    signal = iq[128: 128 + 80]
-    signal_symbols = ofdm.undo(signal, equalizer, index_in_package=0)
-    data_bits = modulator.undo(signal_symbols, bits_per_symbol=1)
-    data_bits = interleaver.undo(data_bits, coded_bits_ofdm_symbol=48, coded_bits_subcarrier=1)
-    data_bits = convolutional_coder.undo(data_bits)
-    data_rate, length_bytes = header.undo(data_bits)
-    conf = Config.from_data_rate(data_rate)
-    n_ofdm_symbols = int(np.ceil((length_bytes * 8 + 22) / conf.data_bits_per_ofdm_symbol))
-    logger.info(
-        f'Package {length_bytes} bytes -> {n_ofdm_symbols} OFDM symbols @ {data_rate}MB/s ({conf.modulation}, {conf.coding_rate})')
-
-    """ Payload demodulation """
-    signal_end = 128 + 80
-    data_groups = iq[signal_end: signal_end + (80 * n_ofdm_symbols)].reshape((-1, 80))
-    data_symbols = np.array([ofdm.undo(group, equalizer, index_in_package=1 + i)
-                             for i, group in enumerate(data_groups)])
-
-    """ Symbols to bits flow """
-    data_bits = bits([modulator.undo(symbol, bits_per_symbol=conf.coded_bits_per_carrier_symbol)
-                      for symbol in data_symbols])
-
-    interleaving_groups = data_bits.split(conf.coded_bits_per_ofdm_symbol)
-    data_bits = bits([interleaver.undo(group, conf.coded_bits_per_ofdm_symbol, conf.coded_bits_per_carrier_symbol)
-                      for group in interleaving_groups])
-    # data_bits = interleaver.undo(data_bits, conf.coded_bits_per_ofdm_symbol, conf.coded_bits_per_carrier_symbol)
-    data_bits = puncturer.undo(data_bits, conf.coding_rate)
-    data_bits = convolutional_coder.undo(data_bits)
-    data_bits = scrambler.undo(data_bits)
-    data_bits = padder.undo(data_bits, length_bytes)
-
-    result = Packet(equalizer,
-                    (signal_symbols, 1),
-                    data_rate,
-                    n_ofdm_symbols,
-                    length_bytes,
-                    conf.modulation,
-                    conf.coding_rate,
-                    (data_symbols, conf.coded_bits_per_carrier_symbol),
-                    data_bits)
-    return result
 
 
 def test_packet_detector():

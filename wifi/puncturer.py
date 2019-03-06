@@ -8,8 +8,8 @@ The puncturing patterns are illustrated in Figure 17-9.
 from hypothesis import assume, given
 from hypothesis._strategies import binary, sampled_from
 
+from util.util import is_divisible
 from wifi import bits
-from wifi.util import is_divisible
 
 
 def do(data: bits, coding_rate='1/2') -> bits:
