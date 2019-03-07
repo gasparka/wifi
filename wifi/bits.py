@@ -17,7 +17,7 @@ class bits:
         super().__init_subclass__(**kwargs)
         cls.subclasses.append(str)
 
-    def __init__(self, val):
+    def __init__(self, val, init_only=False):
         """
         >>> bits(['0', '1', '0'])
         '010'
@@ -41,6 +41,10 @@ class bits:
         '01110100011001010111001001100101'
 
         """
+        if init_only:
+            self.data=val
+            return
+
         if isinstance(val, bytes):
             val = val.hex()
             if val != '':
@@ -50,7 +54,7 @@ class bits:
             import operator, functools
             val = functools.reduce(operator.add, val)
         elif isinstance(val, np.ndarray):
-            val = ''.join([str(int(x)) for x in val])
+            val = ''.join([str(int(x)) for x in val]) # used in interleaver
         elif isinstance(val, str) and val[0:2] in ('0x', '0X'):
             val = val[2:]
             num_of_bits = int(len(val) * np.log2(16))
@@ -89,13 +93,14 @@ class bits:
         >>> a[0, 2]
         '00'
         """
-        if isinstance(item, (tuple, list)):
+        try:
+            res = self.data[item]
+            return bits(res, init_only=True)
+        except:
             # use Numpy fancy indexing. Example: a[1, 2] can select element 1 and 2
             num = np.array([x for x in self.data])
             res = num[list(item)].tolist()
-        else:
-            res = self.data[item]
-        return bits(res)
+            return bits(res)
 
     def __add__(self, other):
         """
