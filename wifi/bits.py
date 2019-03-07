@@ -13,10 +13,6 @@ class bits:
         """
         return cls(bin(x)[2:].zfill(bits))  # [2:] skips the '0b' string
 
-    def __init_subclass__(cls, **kwargs):
-        super().__init_subclass__(**kwargs)
-        cls.subclasses.append(str)
-
     def __init__(self, val, init_only=False):
         """
         >>> bits(['0', '1', '0'])
@@ -149,14 +145,6 @@ class bits:
 
         return bits(f'{other}{self.data}', init_only=True)
 
-    def reshape(self, shape) -> List['bits']:
-        """
-        >>> bits('0011').reshape((-1, 2))
-        ['00', '11']
-        """
-        assert shape[0] == -1 # just to look similar to numpy TODO
-        return [bits(self.data[i:i + shape[1]]) for i in range(0, len(self.data), shape[1])]
-
     def astype(self, type):
         """
         >>> bits('0011').astype(int)
@@ -182,7 +170,7 @@ class bits:
 
     def split(self, amount: int) -> List['bits']:
         """
-        >>> bits('0011').reshape((-1, 2))
+        >>> bits('0011').split(2)
         ['00', '11']
         """
         return [bits(self.data[i:i + amount]) for i in range(0, len(self.data), amount)]
