@@ -2,19 +2,22 @@
 Scrambler randomizes the input data stream, which provides very-weak layer of security.
 May increase transmission quality when the original data contains long running ones/zeroes.
 Also known as whitener because output resembles white noise.
+
+See 'notebooks/why_scrambler.ipynb' for experiments.
 """
 from hypothesis import given
 from hypothesis._strategies import binary
-from wifi.bits import bits
+
+from wifi import bits
 
 
 def do(data: bits) -> bits:
     output = bits('')
     shr = bits('1011101')
     for bit in data:
-        feedback = shr[3] ^ shr[6]
-        shr = feedback + shr[:-1]
-        output += bit ^ feedback
+        feedback = int(shr[3]) ^ int(shr[6])
+        output += str(int(bit) ^ feedback)
+        shr = str(feedback) + shr[:-1]
     return output
 
 
@@ -26,7 +29,6 @@ def test_i152():
     """
     IEEE Std 802.11-2016: I.1.4.2 Coding the SIGNAL field bits
     """
-
     # Table I-13—The DATA bits before scrambling
     input = bits('00000000000000000010000001000000000000000111010000000000000001100001000010110011111011000110010'
                  '100000000000001000110101110000000001111001000111100000000000001100001000010110101110111001111010'
@@ -64,6 +66,7 @@ def test_i152():
 
 
 @given(binary())
-def test_hypothesis(s):
-    s = bits(s)
+def test_hypothesis(bytes):
+    from wifi.bits import from_bytes
+    s = from_bytes(bytes)
     assert undo(do(s)) == s
