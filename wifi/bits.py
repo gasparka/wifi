@@ -121,11 +121,9 @@ class bits:
         >>> a
         '0'
         """
-        if isinstance(other, int):  # int also covers bool
-            assert other == 0 or other == 1
-            other = str(int(other))
-
-        return bits(self.data + str(other))
+        if isinstance(other, int):
+            other = '1' if other else '0'
+        return bits(f'{self.data}{other}', init_only=True)
 
     def __radd__(self, other):
         """
@@ -146,11 +144,10 @@ class bits:
         >>> a
         '0'
         """
-        if isinstance(other, int):  # int also covers bool
-            assert other == 0 or other == 1
-            other = str(int(other))
+        if isinstance(other, int):
+            other = '1' if other else '0'
 
-        return bits(str(other) + self.data)
+        return bits(f'{other}{self.data}', init_only=True)
 
     def reshape(self, shape) -> List['bits']:
         """
