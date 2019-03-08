@@ -8,7 +8,7 @@ See 'notebooks/why_scrambler.ipynb' for experiments.
 from hypothesis import given
 from hypothesis._strategies import binary
 
-from wifi import bits
+from wifi import bits, bitstr
 
 
 def do(data: bits) -> bits:
@@ -67,6 +67,5 @@ def test_i152():
 
 @given(binary())
 def test_hypothesis(bytes):
-    from wifi.bits import from_bytes
-    s = from_bytes(bytes)
+    s = bitstr.from_bytes(bytes)
     assert undo(do(s)) == s

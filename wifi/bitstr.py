@@ -1,16 +1,20 @@
+from typing import List
+
 import numpy as np
 from hypothesis import given, assume
 from hypothesis._strategies import integers, binary
 from more_itertools import chunked
 
-bits = str  # alias for better annotations
+from util.util import is_divisible
+
+bits = str
 
 
 def from_int(i, number_of_bits=None) -> bits:
     assume(i >= 0)
     b = bin(i)[2:]
     if number_of_bits:
-        b.zfill(number_of_bits)
+        b = b.zfill(number_of_bits)
     return b
 
 
@@ -42,6 +46,20 @@ def to_bytes(bits) -> bytes:
     return bytes([to_int(''.join(x)) for x in chunked(bits, 8)])
 
 
+def split(bits, split_size) -> List[bits]:
+    assume(is_divisible(bits, split_size))
+    return [bits[i:i + split_size] for i in range(0, len(bits), split_size)]
+
+
+def merge(bits: List[bits]):
+    return ''.join(bits)
+
+
+def from_list(l):
+    r = [str(int(x)) for x in l]
+    return merge(r)
+
+
 @given(integers())
 def test_int(i):
     assert to_int(from_int(i)) == i
@@ -55,9 +73,28 @@ def test_hex(i):
 
 @given(binary())
 def test_bytes(i):
-    f = from_bytes(i)
-    b = to_bytes(f)
     assert to_bytes(from_bytes(i)) == i
+
+
+def test_fill():
+    assert from_int(0, 3) == '000'
+
+
+def test_split_merge():
+    b = from_hex('0x12')
+    s = split(b, 4)
+    assert s == ['0001', '0010']
+
+    m = merge(s)
+    assert m == b
+
+
+def test_list():
+    assert from_list([1, 0, 0, 1]) == '1001'
+
+def test_empty_byte():
+    a = from_bytes(b'')
+    pass
 
 # from typing import List
 # import numpy as np

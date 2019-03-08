@@ -5,15 +5,14 @@ from wifi import transceiver
 import numpy as np
 
 
-def _ber(iq, snr, expected_bits):
+def _per(iq, snr, expected_bits):
     iq = awgn(iq, snr)
     try:
         actual_bits = transceiver.undo(iq)
     except:
-        return 1.0
+        return False
 
-    diff = len([True for x, y in zip(expected_bits, actual_bits) if x != y])
-    return diff / len(expected_bits)
+    return expected_bits == actual_bits
 
 
 def do(data, data_rate, snr_range, averaging=256):
@@ -21,7 +20,6 @@ def do(data, data_rate, snr_range, averaging=256):
     with Pool(8) as p:
         ret = {}
         for snr in tqdm(snr_range):
-            res = p.starmap(_ber, [(iq, snr, data)] * averaging)
-            ret[snr] = np.mean(res)
+            res = p.starmap(_per, [(iq, snr, data)] * averaging)
+            ret[snr] = np.mean(np.array(res).astype(float)) * 100
     return ret
-

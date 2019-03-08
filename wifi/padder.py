@@ -20,7 +20,7 @@ from typing import Tuple
 from hypothesis import given
 from hypothesis._strategies import binary, sampled_from
 
-from wifi import bits
+from wifi import bits, bitstr
 import numpy as np
 
 
@@ -44,7 +44,7 @@ def undo(data: bits, length_bytes: int) -> bits:
 
 @given(binary(), sampled_from([48, 96, 192, 288]))
 def test_hypothesis(data, data_bits_per_ofdm_symbol):
-    data = bits(data)
+    data = bitstr.from_bytes(data)
 
     done_data, n_pad = do(data, data_bits_per_ofdm_symbol)
     assert undo(done_data, len(data) // 8) == data

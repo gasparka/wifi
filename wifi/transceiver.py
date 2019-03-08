@@ -1,5 +1,4 @@
 import os
-from copy import deepcopy
 from typing import List
 
 import numpy as np
@@ -7,13 +6,13 @@ from hypothesis import settings, given
 from hypothesis._strategies import composite, integers, binary, sampled_from
 
 from wifi import convolutional_coder, header, interleaver, modulator, scrambler, bits, puncturer, preambler, \
-    padder, subcarrier_mapping, pilots, to_time_domain, guard_interval, merger, channel_impairments
+    padder, subcarrier_mapping, pilots, to_time_domain, guard_interval, merger, channel_impairments, bitstr
 from wifi.config import Config
 from loguru import logger
 
 
 def do(data: bits, data_rate: int):
-    data_len_bytes = len(data.split(8))
+    data_len_bytes = len(bitstr.split(data, 8))
     conf = Config.from_data_rate(data_rate)
 
     """ Bit-domain """
@@ -70,7 +69,7 @@ def undo(iq: List[complex]) -> bits:
 def test_annexi():
     """ This is the full test-case provided in the WiFi standard (paragraph ANNEX I) """
     # Table I-1—The message for the BCC example - i have reversed bit ordering in each byte
-    input = bits(
+    input = bitstr.from_hex(
         '0x20400074000610b3ec6500046b803c8f000610b5dcf5000052f69e3404464e96e6162e04ce0e864ed604f6660426966e967'
         '6962e9e34502286aee6162ea64e04f66604a2369ece96aeb6345062964ea6b49676ce964ea62604eea6042e4ea686e6cc846d'
     )
@@ -87,9 +86,9 @@ def test_annexi():
 
 @composite
 def random_packet(draw):
-    elements = draw(integers(min_value=0, max_value=1000)) # correct would be max_value=(2**12)-1, but this is too slow!
+    elements = draw(integers(min_value=0, max_value=(2**12)-1))
     data = draw(binary(min_size=elements, max_size=elements))
-    data = bits(data)
+    data = bitstr.from_bytes(data)
     rate = draw(sampled_from([6, 9, 12, 18, 24, 36, 48, 54]))
     return data, rate
 

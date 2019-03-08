@@ -24,8 +24,8 @@ from hypothesis import given
 from hypothesis._strategies import integers, sampled_from
 
 from util.util import reverse
-from wifi import convolutional_coder, interleaver, modulator
-from wifi.bits import bits
+from wifi import convolutional_coder, interleaver, modulator, bitstr
+from wifi.bitstr import bits
 from wifi.modulator import Symbol
 from wifi.subcarrier_mapping import Carriers
 
@@ -54,7 +54,7 @@ RATE_LUT = {6: '1101',
 
 def do(data_rate: int, length_bytes: int) -> List[Symbol]:
     if length_bytes > (2 ** 12) - 1:
-        raise Exception(f'Maximum bytes in a packet is {(2**12)-1}, you require {length_bytes}')
+        raise Exception(f'Maximum bytes in a packet is {(2 ** 12) - 1}, you require {length_bytes}')
 
     # First 4 bits indicate rate
     signal = bits(RATE_LUT[data_rate])
@@ -63,10 +63,10 @@ def do(data_rate: int, length_bytes: int) -> List[Symbol]:
     signal += '0'
 
     # Data length
-    signal += reverse(bits.from_int(length_bytes, bits=12))
+    signal += reverse(bitstr.from_int(length_bytes, number_of_bits=12))
 
     # Bit 17 shall be a positive parity (even-parity) bit for bits 0–16
-    signal += signal.count('1') & 1
+    signal += bitstr.from_int(signal.count('1') & 1)
 
     # In order to facilitate a reliable and timely detection of the RATE and LENGTH fields, 6 zero tail bits are
     # inserted into the PHY header.
@@ -82,14 +82,13 @@ def undo(carriers: Carriers) -> Tuple[int, int]:
     data = modulator.undo(carriers, bits_per_symbol=1)
     data = interleaver.undo(data, coded_bits_ofdm_symbol=48, coded_bits_subcarrier=1)
     data = convolutional_coder.undo(data)
-
-
+    # data = carriers
     parity = data[:17].count('1') & 1
-    assert parity == data[17]
+    assert str(parity) == data[17]
 
     data_rate_bits = data[:4]
     data_rate = [key for key, value in RATE_LUT.items() if value == data_rate_bits][0]
-    length_bytes = data[5:17].flip().astype(int)
+    length_bytes = bitstr.to_int(reverse(data[5:17]))
     return data_rate, length_bytes
 
 
@@ -111,6 +110,6 @@ def test_signal_field():
     assert dec_length_bytes == length_bytes
 
 
-@given(sampled_from(list(RATE_LUT.keys())), integers(min_value=0, max_value=(2**12)-1))
+@given(sampled_from(list(RATE_LUT.keys())), integers(min_value=0, max_value=(2 ** 12) - 1))
 def test_hypothesis(data_rate: int, length_bytes: int):
     assert undo(do(data_rate, length_bytes)) == (data_rate, length_bytes)

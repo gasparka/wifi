@@ -14,7 +14,8 @@ from hypothesis import given, assume
 from hypothesis._strategies import binary, sampled_from
 
 from util.util import is_divisible
-from wifi.bits import bits
+from wifi import bitstr
+from wifi.bitstr import bits
 
 BPSK_LUT = np.array([-1 + 0j, 1 + 0j])
 
@@ -47,9 +48,7 @@ Symbol.__doc__ = """ Frequency domain value, used to modulate individual OFDM ca
 
 
 def do(data: bits, bits_per_symbol: int) -> List[Symbol]:
-    assume(is_divisible(data, by=bits_per_symbol))
-    bit_groups = data.split(bits_per_symbol)
-    indexes = [group.astype(int) for group in bit_groups]
+    indexes = [bitstr.to_int(group) for group in bitstr.split(data, bits_per_symbol)]
     symbols = [LUT[bits_per_symbol][index] for index in indexes]
     return symbols
 
@@ -57,7 +56,8 @@ def do(data: bits, bits_per_symbol: int) -> List[Symbol]:
 def undo(symbols: List[Symbol], bits_per_symbol: int) -> bits:
     errors = [abs(LUT[bits_per_symbol] - symbol) for symbol in symbols]
     best_indexes = np.argmin(errors, axis=1)
-    return bits([bits.from_int(index, bits_per_symbol) for index in best_indexes])
+    res = [bitstr.from_int(index, bits_per_symbol) for index in best_indexes]
+    return bitstr.merge(res)
 
 
 def symbols_error(symbols: np.ndarray, bits_per_symbol: int) -> np.ndarray:
@@ -117,6 +117,6 @@ def test_i144():
 
 @given(binary(), sampled_from([1, 2, 4, 6]))
 def test_hypothesis(data, bits_per_symbol):
-    data = bits(data)
+    data = bitstr.from_bytes(data)
     assert undo(do(data, bits_per_symbol), bits_per_symbol) == data
 

@@ -20,7 +20,8 @@ from hypothesis import given, assume
 from hypothesis._strategies import composite, integers, sampled_from, binary
 
 from util.util import is_divisible
-from wifi.bits import bits
+from wifi import bitstr
+from wifi.bitstr import bits
 
 
 @lru_cache()
@@ -48,38 +49,41 @@ def inverse_permute(x: List[int]) -> List[int]:
     return result.tolist()
 
 
+def apply_permute(data: bits, permute):
+    res = [data[i] for i in permute]
+    return bitstr.merge(res)
+
+
 def do_one(data: bits, coded_bits_ofdm_symbol: int, coded_bits_subcarrier: int) -> bits:
     table = first_permute(coded_bits_ofdm_symbol)
     table = inverse_permute(table)
-    first_result = data[table]
+    first_result = apply_permute(data, table)
 
     table = second_permute(coded_bits_ofdm_symbol, coded_bits_subcarrier)
     table = inverse_permute(table)
-    second_result = first_result[table]
+    second_result = apply_permute(first_result, table)
     return second_result
 
 
 def undo_one(data: bits, coded_bits_ofdm_symbol: int, coded_bits_subcarrier: int) -> bits:
     table = second_permute(coded_bits_ofdm_symbol, coded_bits_subcarrier)
-    first_result = data[table]
+    first_result = apply_permute(data, table)
 
     table = first_permute(coded_bits_ofdm_symbol)
-    second_result = first_result[table]
+    second_result = apply_permute(first_result, table)
     return second_result
 
 
 def do(data: bits, coded_bits_ofdm_symbol: int, coded_bits_subcarrier: int) -> bits:
-    assume(is_divisible(data, coded_bits_ofdm_symbol))
     result = [do_one(interleaving_group, coded_bits_ofdm_symbol, coded_bits_subcarrier)
-              for interleaving_group in data.split(coded_bits_ofdm_symbol)]
-    return bits(result)
+              for interleaving_group in bitstr.split(data, coded_bits_ofdm_symbol)]
+    return bitstr.merge(result)
 
 
 def undo(data: bits, coded_bits_ofdm_symbol: int, coded_bits_subcarrier: int) -> bits:
-    assume(is_divisible(data, coded_bits_ofdm_symbol))
     result = [undo_one(group, coded_bits_ofdm_symbol, coded_bits_subcarrier)
-              for group in data.split(coded_bits_ofdm_symbol)]
-    return bits(result)
+              for group in bitstr.split(data, coded_bits_ofdm_symbol)]
+    return bitstr.merge(result)
 
 
 def test_first_permutation_table():
@@ -155,11 +159,12 @@ def combaination(draw):
     conf = Config.from_data_rate(rate)
     lim = packets * conf.coded_bits_per_ofdm_symbol
     data = draw(binary(min_size=lim, max_size=lim))
-    data = bits(data)
+    data = bitstr.from_bytes(data)
     return data, conf.coded_bits_per_ofdm_symbol, conf.coded_bits_per_carrier_symbol
 
 
 @given(combaination())
 def test_hypothesis(data):
     data, coded_bits_per_ofdm_symbol, coded_bits_per_carrier_symbol = data
-    assert undo(do(data, coded_bits_per_ofdm_symbol, coded_bits_per_carrier_symbol), coded_bits_per_ofdm_symbol, coded_bits_per_carrier_symbol) == data
+    assert undo(do(data, coded_bits_per_ofdm_symbol, coded_bits_per_carrier_symbol), coded_bits_per_ofdm_symbol,
+                coded_bits_per_carrier_symbol) == data

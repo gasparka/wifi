@@ -1,3 +1,20 @@
+"""
+Convolutional coder uses the data-stream to traverse the well-known state machine.
+Instead of data, the output of each state transition is transmitted.
+
+Note that each new data bit triggers a state change, which contributes 2 bits to output i.e. data rate is
+icreased by 2.
+
+Receiver can use the 'logic' of the state transition to detect and fix the bit errors. Or in other words, choose the most probable path
+Receiver can undo the state transition and fix errors.
+Conv coding increases data rate by 2 or in other works, transmittion efficientcy drops to 50%.
+
+There is more and better information in 'doc/conv_coding_MIT6_02F12_chap07.pdf' and 'doc/conv_decoding_MIT6_02F12_chap08.pdf'.
+
+Conv coding increases the PER(packet error rate) by ~6dB - which is the amount neede to double the link distance. In this sense
+we trade efficientcy to link distance or well robustness.
+"""
+
 from loguru import logger
 import numpy as np
 from hypothesis import given, assume, settings
@@ -8,13 +25,15 @@ from util.util import xor_reduce_poly, is_divisible
 from wifi import puncturer, bits
 
 # config
+from wifi import bitstr
+
 K = 7
 STATES = 2 ** (K - 1)
 G0 = int('133', 8)
 G1 = int('171', 8)
 
 # input bit is considered as an additional state (MSb) in this LUT, thus it has (states * 2) values
-OUTPUT_LUT = [bits.from_int((xor_reduce_poly(x, G0) << 1) | xor_reduce_poly(x, G1), bits=2)
+OUTPUT_LUT = [bitstr.from_int((xor_reduce_poly(x, G0) << 1) | xor_reduce_poly(x, G1), number_of_bits=2)
               for x in range(2 ** K)]
 
 
@@ -24,7 +43,7 @@ def do(data: bits) -> bits:
     shr = bits('0' * (K - 1))
     for bit in data:
         i = bit + shr
-        output += OUTPUT_LUT[i.astype(int)]
+        output += OUTPUT_LUT[bitstr.to_int(i)]
         shr = i[:-1]  # advance the shift register
 
     return output
@@ -103,12 +122,11 @@ def trellis_kernel(rx):  # pragma: no cover
 
 def undo(data: bits) -> bits:
     LUT = {'00': 0, '01': 1, '10': 2, '11': 3, '0?': 4, '1?': 5, '?0': 6, '?1': 7}
-    assume(is_divisible(data, by=2))
-    data = [LUT[state_transition] for state_transition in data.split(2)]
+    data = [LUT[state_transition] for state_transition in bitstr.split(data, 2)]
 
     out, error_score = trellis_kernel(data)
-    logger.debug(f'{len(out)//8}B, error_score={int(error_score)}')
-    return bits(out)
+    # logger.debug(f'{len(out)//8}B, error_score={int(error_score)}')
+    return bitstr.from_list(out)
 
 
 def test_signal():
@@ -179,5 +197,5 @@ def test_i161():
 @given(binary())
 # @given(binary(), sampled_from(['1/2', '2/3', '3/4']))
 def test_hypothesis(data):
-    data = bits(data)
+    data = bitstr.from_bytes(data)
     assert undo(do(data)) == data
