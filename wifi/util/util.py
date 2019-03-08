@@ -4,39 +4,9 @@ import numpy as np
 log = logging.getLogger('util')
 
 
-def is_divisible(x, by):
-    return len(x) != 0 and len(x) % by == 0
-
-
-def hex_to_bitstr(hstr):
-    """ http://stackoverflow.com/questions/1425493/convert-hex-to-binary """
-    assert isinstance(hstr, str)
-    if hstr[0:2] in ('0x', '0X'):
-        hstr = hstr[2:]
-    my_hexdata = hstr
-    num_of_bits = int(len(my_hexdata) * np.log2(16))
-    return int_to_binstr(int(my_hexdata, 16), num_of_bits)
-
-
-def flip_byte_endian(bitstr):
-    from textwrap import wrap
-    bytes = wrap(bitstr, 8)
-    flipped = [x[::-1] for x in bytes]
-    return ''.join(flipped)
-
-
-def reverse(x: str):
-    return x[::-1]
-
-
 def xor_reduce_poly(data, poly):
     """ XOR reduces bits that are selected by the 'poly' """
     return int(bin(data & poly).count('1') & 1)
-
-
-def default_reference_symbols():
-    """ QAM16 symbols sent by the examples in the IEE802.11 document """
-    return np.load('/home/gaspar/git/ieee80211phy/data/default_reference_symbols.npy')
 
 
 def power(x):

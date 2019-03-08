@@ -16,10 +16,8 @@ parameter RATE. Refer to 17.3.5.7 for details.
 from functools import lru_cache
 from typing import List
 import numpy as np
-from hypothesis import given, assume
+from hypothesis import given
 from hypothesis._strategies import composite, integers, sampled_from, binary
-
-from util.util import is_divisible
 from wifi import bitstr
 from wifi.bitstr import bits
 

@@ -10,10 +10,8 @@ The purpose of the normalization factor is to achieve the same average power for
 """
 from typing import List, NewType
 import numpy as np
-from hypothesis import given, assume
+from hypothesis import given
 from hypothesis._strategies import binary, sampled_from
-
-from util.util import is_divisible
 from wifi import bitstr
 from wifi.bitstr import bits
 

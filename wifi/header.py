@@ -23,7 +23,6 @@ from typing import Tuple, List
 from hypothesis import given
 from hypothesis._strategies import integers, sampled_from
 
-from util.util import reverse
 from wifi import convolutional_coder, interleaver, modulator, bitstr
 from wifi.bitstr import bits
 from wifi.modulator import Symbol
@@ -63,7 +62,7 @@ def do(data_rate: int, length_bytes: int) -> List[Symbol]:
     signal += '0'
 
     # Data length
-    signal += reverse(bitstr.from_int(length_bytes, number_of_bits=12))
+    signal += bitstr.reverse(bitstr.from_int(length_bytes, number_of_bits=12))
 
     # Bit 17 shall be a positive parity (even-parity) bit for bits 0–16
     signal += bitstr.from_int(signal.count('1') & 1)
@@ -88,7 +87,7 @@ def undo(carriers: Carriers) -> Tuple[int, int]:
 
     data_rate_bits = data[:4]
     data_rate = [key for key, value in RATE_LUT.items() if value == data_rate_bits][0]
-    length_bytes = bitstr.to_int(reverse(data[5:17]))
+    length_bytes = bitstr.to_int(bitstr.reverse(data[5:17]))
     return data_rate, length_bytes
 
 

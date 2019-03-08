@@ -21,11 +21,11 @@ from hypothesis import given, assume, settings
 from hypothesis._strategies import binary
 from numba import njit
 
-from util.util import xor_reduce_poly, is_divisible
 from wifi import puncturer, bits
 
 # config
 from wifi import bitstr
+from wifi.util.util import xor_reduce_poly
 
 K = 7
 STATES = 2 ** (K - 1)

@@ -7,8 +7,6 @@ The puncturing patterns are illustrated in Figure 17-9.
 """
 from hypothesis import assume, given
 from hypothesis._strategies import binary, sampled_from
-
-from util.util import is_divisible
 from wifi import bits, bitstr
 
 
@@ -16,11 +14,11 @@ def do(data: bits, coding_rate='1/2') -> bits:
 
     if coding_rate == '2/3':
         # throw out each 3. bit from groups of 4 bits
-        assume(is_divisible(data, by=4))
+        assume(bitstr.is_divisible(data, by=4))
         data = [bit for i, bit in enumerate(data) if (i % 4) != 3]
     elif coding_rate == '3/4':
         # throw out each 3. and 4. bit groups of 6 bits
-        assume(is_divisible(data, by=6))
+        assume(bitstr.is_divisible(data, by=6))
         data = [bit for i, bit in enumerate(data) if (i % 6) != 3 and (i % 6) != 4]
 
     return bitstr.merge(data)

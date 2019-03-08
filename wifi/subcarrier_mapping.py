@@ -16,8 +16,6 @@ from hypothesis import assume, given
 from hypothesis._strategies import lists
 from hypothesis.extra.numpy import arrays
 from more_itertools import chunked, flatten
-
-from util.util import is_divisible
 from wifi import modulator
 from wifi.modulator import Symbol
 
@@ -156,7 +154,6 @@ def undo_one(carriers: Carriers) -> List[Symbol]:
 
 
 def do(symbols: List[Symbol]) -> List[Carriers]:
-    assume(is_divisible(symbols, 48))
     return [do_one(chunk) for chunk in chunked(symbols, 48)]
 
 
