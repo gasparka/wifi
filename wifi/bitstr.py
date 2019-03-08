@@ -7,11 +7,9 @@ from more_itertools import chunked
 bits = str
 
 
-def from_int(i, number_of_bits=None) -> bits:
+def from_int(i, number_of_bits) -> bits:
     assume(i >= 0)
-    b = bin(i)[2:]
-    if number_of_bits:
-        b = b.zfill(number_of_bits)
+    b = bin(i)[2:].zfill(number_of_bits)
     return b
 
 
@@ -67,7 +65,7 @@ def is_divisible(x:bits, by:int) -> bool:
 
 @given(integers())
 def test_int(i):
-    assert to_int(from_int(i)) == i
+    assert to_int(from_int(i, 32)) == i
 
 
 @given(integers())

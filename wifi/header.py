@@ -65,7 +65,7 @@ def do(data_rate: int, length_bytes: int) -> List[Symbol]:
     signal += bitstr.reverse(bitstr.from_int(length_bytes, number_of_bits=12))
 
     # Bit 17 shall be a positive parity (even-parity) bit for bits 0–16
-    signal += bitstr.from_int(signal.count('1') & 1)
+    signal += bitstr.from_int(signal.count('1') & 1, number_of_bits=1)
 
     # In order to facilitate a reliable and timely detection of the RATE and LENGTH fields, 6 zero tail bits are
     # inserted into the PHY header.
